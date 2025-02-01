@@ -1,6 +1,6 @@
-Data/*
-Models/*
-Csv/*
+Data
+Models
+Csv
 
 __pycache__
 .venv
