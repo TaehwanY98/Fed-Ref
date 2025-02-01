@@ -1,0 +1,9 @@
+Data/*
+Models/*
+Csv/*
+
+__pycache__
+.venv
+Result
+command.txt
+logs.log
