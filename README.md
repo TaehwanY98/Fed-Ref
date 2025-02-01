@@ -1,7 +1,7 @@
 ﻿## Fed-Ref: Federated Learning on Reference Model for Medical Vision
 
 ### Abstract
-    Federated learning(FL) is proposed in the medical area as a solution to patient data privacy issues and in a decentralized state. However, existing FL scenarios have many challenges regarding model privacy, optimization of the aggregation method, and increasing model performance for a data heterogeneous scenario. In this paper, we focus on the heterogeneous issue and proposed federated learning based on knowledge distillation with the reference model(FedRef) for a clustered FL solution. This method guaranteed a standard model for clustering and aggregation model which can be controlled by the best model point by knowledge distillation method. For these reasons, FedRef improved the performance of the model under heterogeneous conditions.
+Federated learning(FL) is proposed in the medical area as a solution to patient data privacy issues and in a decentralized state. However, existing FL scenarios have many challenges regarding model privacy, optimization of the aggregation method, and increasing model performance for a data heterogeneous scenario. In this paper, we focus on the heterogeneous issue and proposed federated learning based on knowledge distillation with the reference model(FedRef) for a clustered FL solution. This method guaranteed a standard model for clustering and aggregation model which can be controlled by the best model point by knowledge distillation method. For these reasons, FedRef improved the performance of the model under heterogeneous conditions.
 
 ### Settings
 | Environment set  | Settings for detail                             |
@@ -36,9 +36,9 @@
     </tr>
     <tr>
         <td>Fed-PID</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>17.10%</td>
+        <td>21.75%</td>
+        <td>6.73</td>
     </tr>
     <tr>
         <td>Fed-LWR</td>
