@@ -61,27 +61,27 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
     </tr>
     <tr>
         <td>Fed-Avg</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>12.76%</td>
+        <td>17.41%</td>
+        <td>6.79</td>
     </tr>
     <tr>
         <td>Fed-PID</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>12.27%</td>
+        <td>16.93%</td>
+        <td>7.26</td>
     </tr>
     <tr>
         <td>Fed-LWR</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>12.74%</td>
+        <td>17.38%</td>
+        <td>6.69</td>
     </tr>
     <tr>
         <td>Fed-Ref</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>12.77%</td>
+        <td>17.42%</td>
+        <td>6.81</td>
     </tr>
     <tr style="background-color:wheat;">
         <td>Classification</td>
