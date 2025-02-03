@@ -77,7 +77,7 @@ class CustomHF95(nn.Module):
         # x = torch.softmax(x, dim=0)
         result = 0.0
         for i in self.num_classes:
-            result += Hausdolf95().to(DEVICE)(x[i,...], y[i,...]).item()
+            result += Hausdorff95().to(DEVICE)(x[i,...], y[i,...]).item()
         return  result/len(self.num_classes)
         
 class CustomDice(nn.Module):
@@ -147,9 +147,9 @@ def set_seeds(args):
 def to_csv(history, file_name):
     pd.DataFrame(history, index=None).to_csv(f"./Csv/{file_name}.csv")
 
-class Hausdolf95(nn.Module):
+class Hausdorff95(nn.Module):
     def __init__(self):
-        super(Hausdolf95, self).__init__()
+        super(Hausdorff95, self).__init__()
         self.distancef = nn.PairwiseDistance()
     def distance(self, x, y):
         return self.distancef(x, y)
