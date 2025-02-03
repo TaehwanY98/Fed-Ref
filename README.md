@@ -125,4 +125,18 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
 </table>
 
 ### Result Visualization
-Ready..
+#### FeTs2021
+Label<img src="Result/img/fets2021/label.png">
+Central<img src="Result/img/fets2021/central.png">
+FedAvg<img src="Result/img/fets2021/fedavg.png">
+FedPID<img src="Result/img/fets2021/fedpid.png">
+FedLWR<img src="Result/img/fets2021/fedlwr.png">
+FedRef<img src="Result/img/fets2021/fedref.png">
+
+#### BRATS
+Label<img src="Result/img/brats/label.png">
+Central<img src="Result/img/brats/central.png">
+FedAvg<img src="Result/img/brats/fedavg.png">
+FedPID<img src="Result/img/brats/fedpid.png">
+FedLWR<img src="Result/img/brats/fedlwr.png">
+FedRef<img src="Result/img/brats/fedref.png">

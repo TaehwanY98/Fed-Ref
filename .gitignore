@@ -4,6 +4,6 @@ Csv
 
 __pycache__
 .venv
-Result
+Result/fed*
 command.txt
 logs.log
