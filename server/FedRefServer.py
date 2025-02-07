@@ -10,7 +10,7 @@ from flwr.common.logger import log
 from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
 from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, CustomFocalDiceLoss, set_seeds
+from utils.train import valid , make_model_folder, CustomFocalDiceLoss, set_seeds, validDrive
 from utils.octTrain import valid as octValid
 from utils.parser import Federatedparser
 from utils.CustomDataset import Fets2022, BRATS, OCTDL
@@ -195,6 +195,8 @@ class FedRef(flwr.server.strategy.FedAvg):
         parameters = parameters_to_ndarrays(parameters)
         lossf = CustomFocalDiceLoss() if not self.args.type=="octdl" else nn.BCEWithLogitsLoss(self.dataset.label_weight)
         validF= valid if not self.args.type=="octdl" else octValid
+        if self.args.type in ["drive"]:
+            validF = validDrive
         set_parameters(self.aggregated_net, parameters)
         history=validF(self.aggregated_net, self.validLoader, 0, lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)

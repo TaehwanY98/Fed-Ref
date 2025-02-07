@@ -67,9 +67,9 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
     </tr>
     <tr>
         <td>Fed-PID</td>
-        <td>12.27%</td>
-        <td>16.93%</td>
-        <td>7.26</td>
+        <td>12.58%</td>
+        <td>17.18%</td>
+        <td>5.20</td>
     </tr>
     <tr>
         <td>Fed-LWR</td>
@@ -83,15 +83,8 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
         <td>17.42%</td>
         <td>6.81</td>
     </tr>
-    <tr style="background-color:wheat;">
-        <td>Classification</td>
-        <td>Strategy</td>
-        <td>Accuracy</td>
-        <td>F1score</td>
-        <td>RMSE</td>
-    </tr>
     <tr>
-        <td rowspan=5 style="background-color:darkseagreen;">OCTDL</td>
+        <td rowspan=5 style="background-color:darkseagreen;">DRIVE</td>
         <td>Centralized</td>
         <td>00.00%</td>
         <td>00.00%</td>

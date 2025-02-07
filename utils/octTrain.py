@@ -11,7 +11,12 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD
 import torch
 from torch.nn.functional import one_hot
-from Network.Resnet import ResNet
+import sys
+if __name__=="__main__":
+    sys.path.append("../Network")
+    from Resnet import ResNet
+else:
+    from Network.Resnet import ResNet
 from torchmetrics.classification import Accuracy, F1Score
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,7 +36,6 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
             X= torch.stack([s["x"] for s in sample], 0)
             Y= torch.stack([s["y"] for s in sample], 0)
             out = net(X.type(float32).to(DEVICE))
-            
             loss = lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).type(float32).squeeze().to(DEVICE))
             loss.backward()
             optimizer.step()          
@@ -64,13 +68,14 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
         Y= torch.stack([s["y"] for s in sample], 0)
     
         out = net(X.type(float32).to(DEVICE)) 
-    
+
         losses += lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).type(float32).squeeze().to(DEVICE)).item()
+        
         Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).squeeze().to(DEVICE)).item()
         Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).squeeze().to(DEVICE)).item()
 
     # if Central:
-    #     logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
+        # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
         
     return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
 

@@ -17,7 +17,7 @@ from clients import client, clientPID
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
-
+import deeplake
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args = parser.Simulationparser()
 seg.set_seeds(args)
@@ -38,12 +38,34 @@ focalLoss = smp.losses.FocalLoss(
    gamma=4.5,                   # Focusing parameter for hard-to-classify examples
    normalized=True
 )
+diceLossb = smp.losses.DiceLoss(
+   mode="binary",          # For multi-class segmentation
+   classes=None,               # Compute the loss for all classes
+   log_loss=False,             # Do not use log version of Dice loss
+   from_logits=True,           # Model outputs are raw logits
+   smooth=1e-5,                # A small smoothing factor for stability
+   ignore_index=None,          # Don't ignore any classes
+   eps=1e-7                    # Epsilon for numerical stability
+)
+
+focalLossb = smp.losses.FocalLoss(
+   mode="binary",          # Multi-class segmentation
+   alpha=0.1,                 # class weighting to deal with class imbalance
+   gamma=4.5,                   # Focusing parameter for hard-to-classify examples
+   normalized=True
+)
 class CustomFocalDiceLoss(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     def forward(self, x, y):
         return diceLoss.to(DEVICE)(x, y) + focalLoss.to(DEVICE)(x, y)
-
+    
+class CustomFocalDiceLossb(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def forward(self, x, y):
+        return diceLossb.to(DEVICE)(x, y) + focalLossb.to(DEVICE)(x, y)
+    
 if args.mode !="fedref":
     if args.type == "fets":
         net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
@@ -51,6 +73,8 @@ if args.mode !="fedref":
         net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
     if args.type == "octdl":
         net = ResNet()
+    if args.type == "drive":
+        net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
     net.to(DEVICE)
 elif args.mode =="fedref":
     if args.type in ["fets", "brats"]:
@@ -63,13 +87,23 @@ elif args.mode =="fedref":
         aggregated_net.to(DEVICE)
         ref_net = ResNet()
         ref_net.to(DEVICE)
+    elif args.type in ["drive"]:
+        aggregated_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
+        aggregated_net.to(DEVICE)
+        ref_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
+        ref_net.to(DEVICE)
 if args.type == "fets":
     dataset = Fets2022(args.data_dir)
 if args.type == "brats":
     dataset = BRATS(args.data_dir)
 if args.type == "octdl":
     dataset = OCTDL(args.data_dir)
-validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
+if args.type == "drive":
+    dataset = deeplake.load("hub://activeloop/drive-test")
+if args.type !="drive":
+    validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
+else:
+    validLoader = dataset.pytorch(batch_size=args.batch_size, shuffle=False , collate_fn= lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
 if args.type == "brats":
@@ -89,7 +123,6 @@ def save_result(args):
     elif args.type == "octdl":
         pass
 
-
 def client_fn(context: Context):
     id = int(context.node_id)%10
     if args.type == "fets":
@@ -98,15 +131,24 @@ def client_fn(context: Context):
         trainset = BRATS(client_dirs[id])
     if args.type == "octdl":
         trainset = OCTDL(client_dirs[id])
-    train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+    if args.type == "drive":
+        trainset = deeplake.load("hub://activeloop/drive-train")
+    if args.type != "drive":
+        train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+    else:
+        train_loader = trainset.pytorch(batch_size=args.batch_size, shuffle=True, collate_fn= lambda x: x)
     if args.type == "octdl":
-        lossf = nn.BCEWithLogitsLoss(trainset.label_weight)
+        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
         trainF = oct.train
         validF = oct.valid
-    else :
-        lossf = CustomFocalDiceLoss()
+    elif args.type in ["fets", "brats"] :
+        lossf = CustomFocalDiceLoss().to(DEVICE)
         trainF = seg.train
-        validF = seg.valid 
+        validF = seg.valid
+    elif args.type in ["drive"] :
+        lossf = CustomFocalDiceLossb().to(DEVICE)
+        trainF = seg.trainDrive
+        validF = seg.validDrive 
     if args.mode == "fedpid":
         return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedref":
