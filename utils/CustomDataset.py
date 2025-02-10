@@ -103,7 +103,7 @@ class OCTDL(object):
                 break
 
         ret={
-            "x" : torch.Tensor(np.stack([x, x, x], axis=0)),
+            "x" : torch.Tensor(x),
             'y' : y,
             # 'name': path.split("/")[-1],
             # 'path': path

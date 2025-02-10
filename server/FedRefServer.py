@@ -10,7 +10,7 @@ from flwr.common.logger import log
 from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
 from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, CustomFocalDiceLoss, set_seeds, validDrive
+from utils.train import valid , make_model_folder, CustomFocalDiceLoss, CustomFocalDiceLossb, set_seeds, validDrive
 from utils.octTrain import valid as octValid
 from utils.parser import Federatedparser
 from utils.CustomDataset import Fets2022, BRATS, OCTDL
@@ -32,7 +32,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 OMEGA = 0.7
 
 def ndarrays_to_arrays(param):
-    return [v.flatten() for v in param]
+    return [np.nan_to_num(v.flatten(), posinf=0.0, neginf=0.0, nan=0.0) for v in param]
 
 def cosine_similarity_cal(X, Y):
     try:
@@ -43,7 +43,11 @@ def cosine_similarity_cal(X, Y):
 
 def comparing_net(ref_net, aggregated_net, metric, dataset, validLoader,args):
     validF=valid if not args.type=="octdl" else octValid
+    if args.type == "drive":
+        validF = validDrive
     lossf = CustomFocalDiceLoss() if not args.type=="octdl" else nn.BCEWithLogitsLoss(dataset.label_weight)
+    if args.type == "drive":
+        lossf = CustomFocalDiceLossb()
     history1=validF(aggregated_net, validLoader, 0, lossf.to(DEVICE), DEVICE)
     history2=validF(ref_net, validLoader, 0, lossf.to(DEVICE), DEVICE)
 
@@ -71,7 +75,7 @@ def Adaptive_eps(data, min_samples):
     distances = distances[:, -1]  # Distances to k-th nearest neighbor
     # 2. Calculate adaptive epsilon
     epsilon = distances  # Adjust this factor as needed
-    return float(epsilon.mean())
+    return float(np.nan_to_num(epsilon.mean(), nan=0.0, posinf=0.1, neginf=0.1))
     
 class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module,dataset, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
@@ -113,7 +117,10 @@ class FedRef(flwr.server.strategy.FedAvg):
             
             clusterv = np.array(list(clusters.values()))
             data = clusterv
-            Dbscan = DBSCAN(eps=Adaptive_eps(ndarrays_to_arrays(data), 2), min_samples=2)
+            if self.args.type != "drive":
+                Dbscan = DBSCAN(eps=Adaptive_eps(ndarrays_to_arrays(data), 2), min_samples=2)
+            else:
+                Dbscan = DBSCAN(eps=0.1, min_samples=2)
             cluster_index = Dbscan.fit_predict(ndarrays_to_arrays(data))
             
             print(cluster_index)
@@ -194,6 +201,8 @@ class FedRef(flwr.server.strategy.FedAvg):
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
         lossf = CustomFocalDiceLoss() if not self.args.type=="octdl" else nn.BCEWithLogitsLoss(self.dataset.label_weight)
+        if self.args.type in ["drive"]:
+            lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
         if self.args.type in ["drive"]:
             validF = validDrive
@@ -202,12 +211,12 @@ class FedRef(flwr.server.strategy.FedAvg):
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
         save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         

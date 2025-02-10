@@ -4,7 +4,7 @@ import torch
 import warnings
 from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, set_seeds, CustomFocalDiceLoss, validDrive
+from utils.train import valid , make_model_folder, set_seeds, CustomFocalDiceLossb, CustomFocalDiceLoss,validDrive
 from utils.octTrain import valid as octValid
 from utils.parser import Federatedparser
 from utils.CustomDataset import Fets2022, BRATS, OCTDL
@@ -31,6 +31,8 @@ class FedAvg(flwr.server.strategy.FedAvg):
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
         lossf = CustomFocalDiceLoss() if not self.args.type=="octdl" else nn.BCEWithLogitsLoss(self.dataset.label_weight)
+        if self.args.type in ["drive"]:
+            lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
         if self.args.type in ["drive"]:
             validF = validDrive

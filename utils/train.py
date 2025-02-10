@@ -1,12 +1,17 @@
+import sys
+import getpass
+import os
+sys.path.append(os.path.join("/home",getpass.getuser(), "MICCAI"))
+
+
 import segmentation_models_pytorch as smp
 from Network.pytorch3dunet.unet3d.losses import DiceLoss
-from Network.Unet import Custom3DUnet
+from Network.Unet import Custom3DUnet, Custom2DUnet
 from CustomDataset import Fets2022, BRATS
 from parser import Centralparser
 import numpy as np
 import warnings
 import random
-import os
 from tqdm import tqdm
 import pandas as pd
 from torch import nn, int64,float32, save
@@ -14,9 +19,8 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD
 import torch
 from torch.nn.functional import one_hot
-
+import deeplake
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 diceLoss = smp.losses.DiceLoss(
    mode="multiclass",          # For multi-class segmentation
@@ -91,11 +95,11 @@ def trainDrive(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE,
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([torch.Tensor(s["rgb_images"]).permute(-1,0,1) for s in sample], 0)
-            Y= torch.stack([torch.Tensor(s["masks"]).argmax(dim=1).squeeze() for s in sample], 0)
+            X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
+            Y= torch.stack([one_hot(torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64), 2).permute(-1,0,1) for s in sample], 0)
             out = net(X.type(float32).to(DEVICE))
             
-            loss = lossf(out.type(float32).squeeze().permute(1,2,0).to(DEVICE), Y.squeeze().type(int64).to(DEVICE))
+            loss = lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -166,7 +170,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     Dicenary = {'mDice':0, 'mHF95':0}
     length = len(valid_loader) 
     losses = 0
-    dicef= diceLossb.to(DEVICE)
+    dicef= diceLoss.to(DEVICE)
     hf95f = CustomHF95([range(4)]).to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
@@ -190,21 +194,19 @@ def validDrive(net, valid_loader, e, lossf, DEVICE, Central=False):
     Dicenary = {'mDice':0, 'mHF95':0}
     length = len(valid_loader) 
     losses = 0
-    dicef= diceLoss.to(DEVICE)
+    dicef= diceLossb.to(DEVICE)
     hf95f = Hausdorff95().to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
-        X= torch.stack([torch.Tensor(s["rgb_images"]).permute(2, 1 , 0) for s in sample], 0)
-        Y= torch.stack([torch.Tensor(s["masks"]).squeeze() for s in sample], 0)
-    
-        out = net(X.type(float32).to(DEVICE)) 
-        out2 = out.type(float32).squeeze().permute(2, 1, 0).to(DEVICE)
-        losses += lossf(out2, Y.squeeze().type(int64).to(DEVICE)).item()
-        Dicenary[f"mDice"] += (1-dicef(out2, Y.squeeze().type(int64).to(DEVICE))).item()
-        Dicenary[f"mHF95"] += hf95f(out2, Y.squeeze().type(float32).to(DEVICE)).item()
+        X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
+        Y= torch.stack([one_hot(torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64), 2).permute(-1,0,1) for s in sample], 0)
+        out = net(X.type(float32).to(DEVICE))
+        losses += lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
+        Dicenary[f"mHF95"] += hf95f(out.squeeze(), Y.type(torch.float32).to(DEVICE)).item()
 
-    # if Central:
-    #     logger.info(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
+    if Central:
+        print(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
         
     return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length}
 
@@ -239,15 +241,20 @@ def main():
     args = Centralparser()
     
     make_model_folder(f"./Models/{args.version}")
-    set_seeds(args.seed)
+    set_seeds(args)
 
-    
-    net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+    if args.type !="drive":
+        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+    else:
+        net = Custom2DUnet(3, 2, True, 4, "cr", num_groups=4)
     if args.pretrained:
         net.load_state_dict(torch.load(f"./Models/{args.version}/net.pt"))
     
     net.to(DEVICE)
-    lossf = CustomFocalDiceLoss()
+    if args.type !="drive":
+        lossf = CustomFocalDiceLoss()
+    else:
+        lossf = CustomFocalDiceLossb()
     lossf.to(DEVICE)
     optimizer = SGD(net.parameters(), lr = args.lr)
     print("==== 모델 아키텍처 ====")
@@ -261,11 +268,16 @@ def main():
         dataset = Fets2022(args.data_dir)
     elif args.type == "brats":
         dataset = BRATS(args.data_dir)
+    elif args.type =="drive":
+        dataset =  deeplake.load("hub://activeloop/drive-train")
     train_dataset, valid_dataset = random_split(dataset, [0.9,0.1], torch.Generator().manual_seed(args.seed))
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
     valid_loader = DataLoader(valid_dataset, args.batch_size, shuffle=False, collate_fn=lambda x:x)
     print("==== Training ====")
-    history = train(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
+    if args.type !="drive":
+        history = train(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
+    else:
+        history = trainDrive(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
     to_csv(history, args.version)
 
 if __name__=="__main__":

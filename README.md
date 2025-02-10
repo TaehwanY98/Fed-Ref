@@ -86,9 +86,9 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
     <tr>
         <td rowspan=5 style="background-color:darkseagreen;">DRIVE</td>
         <td>Centralized</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>0.0000</td>
+        <td>17.18%</td>
+        <td>29.33%</td>
+        <td>23.18</td>
     </tr>
     <tr>
         <td>Fed-Avg</td>

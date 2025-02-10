@@ -74,7 +74,7 @@ if args.mode !="fedref":
     if args.type == "octdl":
         net = ResNet()
     if args.type == "drive":
-        net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
+        net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
     net.to(DEVICE)
 elif args.mode =="fedref":
     if args.type in ["fets", "brats"]:
@@ -88,9 +88,9 @@ elif args.mode =="fedref":
         ref_net = ResNet()
         ref_net.to(DEVICE)
     elif args.type in ["drive"]:
-        aggregated_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
+        aggregated_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
         aggregated_net.to(DEVICE)
-        ref_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="bcr", num_groups=4)
+        ref_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
         ref_net.to(DEVICE)
 if args.type == "fets":
     dataset = Fets2022(args.data_dir)
@@ -99,11 +99,8 @@ if args.type == "brats":
 if args.type == "octdl":
     dataset = OCTDL(args.data_dir)
 if args.type == "drive":
-    dataset = deeplake.load("hub://activeloop/drive-test")
-if args.type !="drive":
-    validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
-else:
-    validLoader = dataset.pytorch(batch_size=args.batch_size, shuffle=False , collate_fn= lambda x: x)
+    dataset = deeplake.load("hub://activeloop/drive-train")
+validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
 if args.type == "brats":
@@ -132,11 +129,11 @@ def client_fn(context: Context):
     if args.type == "octdl":
         trainset = OCTDL(client_dirs[id])
     if args.type == "drive":
-        trainset = deeplake.load("hub://activeloop/drive-train")
+        trainset = dataset
     if args.type != "drive":
         train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
     else:
-        train_loader = trainset.pytorch(batch_size=args.batch_size, shuffle=True, collate_fn= lambda x: x)
+        train_loader = validLoader 
     if args.type == "octdl":
         lossf = nn.BCEWithLogitsLoss().to(DEVICE)
         trainF = oct.train

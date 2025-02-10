@@ -11,7 +11,7 @@ from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
 import torch
 from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, CustomFocalDiceLoss, set_seeds, validDrive
+from utils.train import valid , make_model_folder, CustomFocalDiceLoss, CustomFocalDiceLossb, set_seeds, validDrive
 from utils.octTrain import valid as octValid
 from utils.parser import Federatedparser
 from utils.CustomDataset import Fets2022, BRATS, OCTDL
@@ -98,6 +98,8 @@ class FedPID(flwr.server.strategy.FedAvg):
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
         lossf = CustomFocalDiceLoss() if not self.args.type=="octdl" else nn.BCEWithLogitsLoss(self.dataset.label_weight)
+        if self.args.type in ["drive"]:
+            lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
         if self.args.type in ["drive"]:
             validF = validDrive
@@ -106,12 +108,12 @@ class FedPID(flwr.server.strategy.FedAvg):
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedPID_{self.args.type}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedPID_{self.args.type}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedPID_{self.args.type}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
         save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
