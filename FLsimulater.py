@@ -74,7 +74,7 @@ if args.mode !="fedref":
     if args.type == "octdl":
         net = ResNet()
     if args.type == "drive":
-        net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
+        net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
     net.to(DEVICE)
 elif args.mode =="fedref":
     if args.type in ["fets", "brats"]:
@@ -88,9 +88,9 @@ elif args.mode =="fedref":
         ref_net = ResNet()
         ref_net.to(DEVICE)
     elif args.type in ["drive"]:
-        aggregated_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
+        aggregated_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
         aggregated_net.to(DEVICE)
-        ref_net = Custom2DUnet(3, 2, True, f_maps=4, layer_order="cr", num_groups=4)
+        ref_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
         ref_net.to(DEVICE)
 if args.type == "fets":
     dataset = Fets2022(args.data_dir)

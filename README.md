@@ -61,15 +61,15 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
     </tr>
     <tr>
         <td>Fed-Avg</td>
-        <td>12.76%</td>
-        <td>17.41%</td>
-        <td>6.79</td>
+        <td>11.89%</td>
+        <td>16.61%</td>
+        <td>7.05</td>
     </tr>
     <tr>
         <td>Fed-PID</td>
-        <td>12.58%</td>
-        <td>17.18%</td>
-        <td>5.20</td>
+        <td>12.76%</td>
+        <td>17.41%</td>
+        <td>6.79</td>
     </tr>
     <tr>
         <td>Fed-LWR</td>
@@ -86,50 +86,43 @@ Federated learning(FL) is proposed in the medical area as a solution to patient 
     <tr>
         <td rowspan=5 style="background-color:darkseagreen;">DRIVE</td>
         <td>Centralized</td>
-        <td>17.18%</td>
-        <td>29.33%</td>
-        <td>23.18</td>
+        <td>56.66%</td>
+        <td>72.33%</td>
+        <td>12.96</td>
     </tr>
     <tr>
         <td>Fed-Avg</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>0.0000</td>
+        <td>42.93%</td>
+        <td>60.07%</td>
+        <td>22.82</td>
     </tr>
     <tr>
         <td>Fed-PID</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>51.25%</td>
+        <td>67.77%</td>
+        <td>16.65</td>
     </tr>
     <tr>
         <td>Fed-LWR</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>00.00</td>
+        <td>42.95%</td>
+        <td>60.10%</td>
+        <td>22.81</td>
     </tr>
     <tr>
         <td>Fed-Ref</td>
-        <td>00.00%</td>
-        <td>00.00%</td>
-        <td>0.0000</td>
+        <td>43.02%</td>
+        <td>60.16%</td>
+        <td>22.84</td>
     </tr>
     
 </table>
 
 ### Result Visualization
 #### FeTs2021
-Label<img src="Result/img/fets2021/label.png">
-Central<img src="Result/img/fets2021/central.png">
-FedAvg<img src="Result/img/fets2021/fedavg.png">
-FedPID<img src="Result/img/fets2021/fedpid.png">
-FedLWR<img src="Result/img/fets2021/fedlwr.png">
-FedRef<img src="Result/img/fets2021/fedref.png">
+<img src="Result/img/fets2021/fetsResult.png">
 
 #### BRATS
-Label<img src="Result/img/brats/label.png">
-Central<img src="Result/img/brats/central.png">
-FedAvg<img src="Result/img/brats/fedavg.png">
-FedPID<img src="Result/img/brats/fedpid.png">
-FedLWR<img src="Result/img/brats/fedlwr.png">
-FedRef<img src="Result/img/brats/fedref.png">
+<img src="Result/img/brats/bratsResult.png">
+
+#### DRIVE
+<img src="Result/img/drive/driveResult.png">

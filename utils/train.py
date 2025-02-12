@@ -96,7 +96,7 @@ def trainDrive(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE,
         net.train()
         for sample in tqdm(train_loader):
             X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
-            Y= torch.stack([one_hot(torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64), 2).permute(-1,0,1) for s in sample], 0)
+            Y= torch.stack([torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64) for s in sample], 0)
             out = net(X.type(float32).to(DEVICE))
             
             loss = lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE))
@@ -199,7 +199,7 @@ def validDrive(net, valid_loader, e, lossf, DEVICE, Central=False):
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
-        Y= torch.stack([one_hot(torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64), 2).permute(-1,0,1) for s in sample], 0)
+        Y= torch.stack([torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64) for s in sample], 0)
         out = net(X.type(float32).to(DEVICE))
         losses += lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
         Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
@@ -246,7 +246,7 @@ def main():
     if args.type !="drive":
         net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
     else:
-        net = Custom2DUnet(3, 2, True, 4, "cr", num_groups=4)
+        net = Custom2DUnet(3, 1, True, 4, "cr", num_groups=4)
     if args.pretrained:
         net.load_state_dict(torch.load(f"./Models/{args.version}/net.pt"))
     
