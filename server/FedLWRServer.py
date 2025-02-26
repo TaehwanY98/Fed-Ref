@@ -121,7 +121,7 @@ class FedLWR(flwr.server.strategy.FedAvg):
             newframe=pd.concat([old_historyframe, historyframe])
             newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedLWR_{self.args.type}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedLWR_{self.args.type}.csv'), index=False)
         save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
@@ -172,6 +172,6 @@ if __name__=="__main__":
     elif args.type == "brats":
         pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedLWR_BRATS.csv", index=False)
         pd.DataFrame(history.losses_centralized).to_csv("./Result/FedLWR_loss_BRATS.csv", index=False)
-    elif args.type == "octdl":
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_OCTDL.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_OCTDL.csv", index=False)
+    # elif args.type == "octdl":
+    #     pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_OCTDL.csv", index=False)
+    #     pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_OCTDL.csv", index=False)

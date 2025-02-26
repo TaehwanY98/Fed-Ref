@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from utils import parser
 import utils.train as seg
 import utils.octTrain as oct
-from utils.CustomDataset import Fets2022, BRATS, OCTDL
+from utils.CustomDataset import *
 from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
@@ -18,6 +18,7 @@ import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
 import deeplake
+import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args = parser.Simulationparser()
 seg.set_seeds(args)
@@ -121,39 +122,73 @@ def save_result(args):
         pass
 
 def client_fn(context: Context):
-    id = int(context.node_id)%10
-    if args.type == "fets":
-        trainset = Fets2022(client_dirs[id])
-    if args.type == "brats":
-        trainset = BRATS(client_dirs[id])
-    if args.type == "octdl":
-        trainset = OCTDL(client_dirs[id])
-    if args.type == "drive":
-        trainset = dataset
-    if args.type != "drive":
-        train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
-    else:
-        train_loader = validLoader 
-    if args.type == "octdl":
-        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
-        trainF = oct.train
-        validF = oct.valid
-    elif args.type in ["fets", "brats"] :
-        lossf = CustomFocalDiceLoss().to(DEVICE)
-        trainF = seg.train
-        validF = seg.valid
-    elif args.type in ["drive"] :
-        lossf = CustomFocalDiceLossb().to(DEVICE)
-        trainF = seg.trainDrive
-        validF = seg.validDrive 
-    if args.mode == "fedpid":
-        return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-    elif args.mode == "fedref":
-        return client.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-    else :
-        return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    if random.randrange(0, 100, 1)>80:
+        print("Normal")
+        id = int(context.node_id)%10
+        if args.type == "fets":
+            trainset = Fets2022(client_dirs[id])
+        if args.type == "brats":
+            trainset = BRATS(client_dirs[id])
+        if args.type == "octdl":
+            trainset = OCTDL(client_dirs[id])
+        if args.type == "drive":
+            trainset = dataset
+        if args.type != "drive":
+            train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+        else:
+            train_loader = validLoader 
+        if args.type == "octdl":
+            lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+            trainF = oct.train
+            validF = oct.valid
+        elif args.type in ["fets", "brats"] :
+            lossf = CustomFocalDiceLoss().to(DEVICE)
+            trainF = seg.train
+            validF = seg.valid
+        elif args.type in ["drive"] :
+            lossf = CustomFocalDiceLossb().to(DEVICE)
+            trainF = seg.trainDrive
+            validF = seg.validDrive 
+        if args.mode == "fedpid":
+            return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        elif args.mode == "fedref":
+            return client.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        else :
+            return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     
-
+    else:
+        print("Added Noise")
+        id = int(context.node_id)%10
+        if args.type == "fets":
+            trainset = Fets2022Noise(client_dirs[id])
+        if args.type == "brats":
+            trainset = BRATSNoise(client_dirs[id])
+        if args.type == "octdl":
+            trainset = OCTDLNoise(client_dirs[id])
+        if args.type == "drive":
+            trainset = dataset
+        if args.type != "drive":
+            train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+        else:
+            train_loader = validLoader 
+        if args.type == "octdl":
+            lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+            trainF = oct.train
+            validF = oct.valid
+        elif args.type in ["fets", "brats"] :
+            lossf = CustomFocalDiceLoss().to(DEVICE)
+            trainF = seg.train
+            validF = seg.valid
+        elif args.type in ["drive"] :
+            lossf = CustomFocalDiceLossb().to(DEVICE)
+            trainF = seg.trainDrive
+            validF = seg.validDrive 
+        if args.mode == "fedpid":
+            return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        elif args.mode == "fedref":
+            return client.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        else :
+            return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
 
 if __name__ =="__main__":
     seg.warnings.filterwarnings("ignore")

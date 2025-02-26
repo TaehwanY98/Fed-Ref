@@ -113,7 +113,7 @@ class FedPID(flwr.server.strategy.FedAvg):
             newframe=pd.concat([old_historyframe, historyframe])
             newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedPID_{self.args.type}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedAvg_{self.args.type}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedPID_{self.args.type}.csv'), index=False)
         save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
