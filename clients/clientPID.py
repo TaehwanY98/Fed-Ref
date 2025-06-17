@@ -131,7 +131,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         super().__init__()
         self.net = net
         self.train_loader = train_loader
-        self.valid_loader = valid_loader
+        self.valid_loader = train_loader
         self.epoch = epoch
         self.lossf = lossf
         self.optim = optimizer

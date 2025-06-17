@@ -3,20 +3,27 @@ import server.FedAvgServer as avg
 import server.FedLWRServer as lwr
 import server.FedPIDServer as pid
 import server.FedRefServer as ref
+import server.FedProxServer as prox
 import flwr as fl
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
+from torchvision import datasets
+from torchvision.transforms import Compose, ToTensor, Normalize
 from utils import parser
 import utils.train as seg
 import utils.octTrain as oct
+import utils.MNISTTrain as mnist
+import utils.CIFAR10Train as cifar10
 from utils.CustomDataset import *
 from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
+from Network.Mobilenet import *
 from clients import client, clientPID
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
+from sklearn.datasets import fetch_openml
 import deeplake
 import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,26 +80,43 @@ if args.mode !="fedref":
     if args.type == "brats":
         net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
     if args.type == "octdl":
-        net = ResNet()
+        net = ResNet(outdim=7)
+    if args.type == "mnist":
+        net = MobileNet(outdim=10)
+    if args.type == "cifar10":
+        net = ResNet(outdim=10)
     if args.type == "drive":
         net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
     net.to(DEVICE)
+    
 elif args.mode =="fedref":
     if args.type in ["fets", "brats"]:
         aggregated_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
         aggregated_net.to(DEVICE)
         ref_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
         ref_net.to(DEVICE)
-    elif args.type in "octdl":
-        aggregated_net = ResNet()
+    elif args.type == "octdl":
+        aggregated_net = ResNet(outdim=7)
         aggregated_net.to(DEVICE)
-        ref_net = ResNet()
+        ref_net = ResNet(outdim=7)
         ref_net.to(DEVICE)
+    elif args.type == "mnist":
+        aggregated_net = MobileNet(outdim=10)
+        aggregated_net.to(DEVICE)
+        ref_net = MobileNet(outdim=10)
+        ref_net.to(DEVICE)
+    elif args.type == "cifar10":
+        aggregated_net = ResNet(outdim=10)
+        aggregated_net.to(DEVICE)
+        ref_net = ResNet(outdim=10)
+        ref_net.to(DEVICE)
+        
     elif args.type in ["drive"]:
         aggregated_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
         aggregated_net.to(DEVICE)
         ref_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
         ref_net.to(DEVICE)
+        
 if args.type == "fets":
     dataset = Fets2022(args.data_dir)
 if args.type == "brats":
@@ -101,13 +125,24 @@ if args.type == "octdl":
     dataset = OCTDL(args.data_dir)
 if args.type == "drive":
     dataset = deeplake.load("hub://activeloop/drive-train")
-validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
+if args.type == "mnist":
+    dataset = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+    validset = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+if args.type == "cifar10":
+    dataset = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+    validset = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+train_set = dataset
+validLoader = DataLoader(validset, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
 if args.type == "brats":
     client_dirs = [os.path.join(args.client_dir, f"{num}") for num in range(1, 11)]
 if args.type == "octdl":
     client_dirs = [os.path.join(args.client_dir, f"{num}") for num in range(1, 11)]
+if args.type == "mnist":
+    pass
+if args.type == "cifar10":
+    pass
 def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
         shape = old.data.size()
@@ -122,73 +157,54 @@ def save_result(args):
         pass
 
 def client_fn(context: Context):
-    if random.randrange(0, 100, 1)>80:
-        print("Normal")
-        id = int(context.node_id)%10
-        if args.type == "fets":
-            trainset = Fets2022(client_dirs[id])
-        if args.type == "brats":
-            trainset = BRATS(client_dirs[id])
-        if args.type == "octdl":
-            trainset = OCTDL(client_dirs[id])
-        if args.type == "drive":
-            trainset = dataset
-        if args.type != "drive":
-            train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+    id = int(context.node_id)%10
+    if args.type == "fets":
+        trainset = Fets2022(client_dirs[id])
+    if args.type == "brats":
+        trainset = BRATS(client_dirs[id])
+    if args.type == "octdl":
+        trainset = OCTDL(client_dirs[id])
+    if args.type == "drive":
+        trainset = train_set
+    if args.type in ["mnist", 'cifar10']:
+        trainset = train_set
+    if args.type in ["fets","brats", "octdl"]:
+        train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+    if args.type in ["drive", "mnist", "cifar10"]:
+        if args.test:
+            i = 0.01
         else:
-            train_loader = validLoader 
-        if args.type == "octdl":
-            lossf = nn.BCEWithLogitsLoss().to(DEVICE)
-            trainF = oct.train
-            validF = oct.valid
-        elif args.type in ["fets", "brats"] :
-            lossf = CustomFocalDiceLoss().to(DEVICE)
-            trainF = seg.train
-            validF = seg.valid
-        elif args.type in ["drive"] :
-            lossf = CustomFocalDiceLossb().to(DEVICE)
-            trainF = seg.trainDrive
-            validF = seg.validDrive 
-        if args.mode == "fedpid":
-            return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-        elif args.mode == "fedref":
-            return client.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-        else :
-            return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+            i = random.randint(2, 5)/10
+            
+        trainS, _ = random_split(trainset, [i, 1-i], torch.Generator("cpu").manual_seed(args.seed))
+        train_loader = DataLoader(trainS, args.batch_size, shuffle=True, collate_fn=lambda x: x)
+    if args.type == "octdl":
+        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+        trainF = oct.train
+        validF = oct.valid
+    elif args.type in ["fets", "brats"] :
+        lossf = CustomFocalDiceLoss().to(DEVICE)
+        trainF = seg.train
+        validF = seg.valid
+    elif args.type in ["drive"] :
+        lossf = CustomFocalDiceLossb().to(DEVICE)
+        trainF = seg.trainDrive
+        validF = seg.validDrive
+    elif args.type == "mnist":
+        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+        trainF = mnist.train
+        validF = mnist.valid
+    elif args.type == "cifar10":
+        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+        trainF = cifar10.train
+        validF = cifar10.valid
+    if args.mode == "fedpid":
+        return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode == "fedref":
+        return clientPID.CustomNumpyClient(aggregated_net, train_loader, validLoader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    else :
+        return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     
-    else:
-        print("Added Noise")
-        id = int(context.node_id)%10
-        if args.type == "fets":
-            trainset = Fets2022Noise(client_dirs[id])
-        if args.type == "brats":
-            trainset = BRATSNoise(client_dirs[id])
-        if args.type == "octdl":
-            trainset = OCTDLNoise(client_dirs[id])
-        if args.type == "drive":
-            trainset = dataset
-        if args.type != "drive":
-            train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
-        else:
-            train_loader = validLoader 
-        if args.type == "octdl":
-            lossf = nn.BCEWithLogitsLoss().to(DEVICE)
-            trainF = oct.train
-            validF = oct.valid
-        elif args.type in ["fets", "brats"] :
-            lossf = CustomFocalDiceLoss().to(DEVICE)
-            trainF = seg.train
-            validF = seg.valid
-        elif args.type in ["drive"] :
-            lossf = CustomFocalDiceLossb().to(DEVICE)
-            trainF = seg.trainDrive
-            validF = seg.validDrive 
-        if args.mode == "fedpid":
-            return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-        elif args.mode == "fedref":
-            return client.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-        else :
-            return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
 
 if __name__ =="__main__":
     seg.warnings.filterwarnings("ignore")
@@ -205,6 +221,8 @@ if __name__ =="__main__":
     elif args.mode =="fedref":
         strategy = ref.FedRef(ref_net, aggregated_net, dataset, validLoader, args, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
+    elif args.mode =="fedprox":
+        strategy = prox.FedProx(net, dataset, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
 
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))

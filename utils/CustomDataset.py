@@ -6,6 +6,9 @@ import SimpleITK as sitk
 from skimage.transform import resize
 from skimage.util import random_noise
 from functools import reduce
+from torchvision.transforms import ToTensor, Normalize, Compose
+
+
 class Fets2022(object):
     def __init__(self, data_dir, norm=True) -> None:
         self.dir = data_dir
@@ -236,3 +239,20 @@ class OCTDLNoise(object):
 
     def __len__(self) :
         return len(self.flatten_names)
+    
+class MNIST(object):
+    def __init__(self, samples, norm=True) -> None:
+        self.samples = samples
+        self.norm = Compose([ToTensor(), Normalize((0.5,0.5,0.5), (0.5, 0.5, 0.5))])
+    def __getitem__(self, i):
+        data = self.samples.data.to_numpy()[i].astype("float32")
+        data = torch.Tensor(data)
+        
+        ret={
+            'x' : self.norm.transforms(torch.stack([data,data,data]).view(28,28,3)),
+            'y' : int(self.samples.target.to_numpy()[i])
+        }
+        return ret
+
+    def __len__(self) :
+        return len(self.samples.data)

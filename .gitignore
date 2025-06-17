@@ -7,3 +7,7 @@ __pycache__
 Result/fed*
 command.txt
 logs.log
+BRATS.ipynb
+DRIVE.ipynb
+example.ipynb
+OCTDL.ipynb

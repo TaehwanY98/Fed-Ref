@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader
 from torch import save
 from utils.train import valid , make_model_folder, CustomFocalDiceLoss, CustomFocalDiceLossb, set_seeds, validDrive
 from utils.octTrain import valid as octValid
+from utils.MNISTTrain import valid as MNISTValid
+from utils.CIFAR10Train import valid as CIFAR10valid
 from utils.parser import Federatedparser
 from utils.CustomDataset import Fets2022, BRATS, OCTDL
 from Network.Unet import *
@@ -76,18 +78,54 @@ def Adaptive_eps(data, min_samples):
     # 2. Calculate adaptive epsilon
     epsilon = distances  # Adjust this factor as needed
     return float(np.nan_to_num(epsilon.mean(), nan=0.0, posinf=0.1, neginf=0.1))
+
+class CircleQueue():
+    def __init__(self, max_queue_size):
+        self.front = 0
+        self.rear = 0
+        self.items = [None]* max_queue_size
+        self.max_que_size = max_queue_size
     
+    def isEmpty(self):
+        return self.front == self.rear
+    def isFull(self):
+        return self.front == (self.rear+1)%self.max_que_size    
+    def clear(self):
+        self.front = self.rear
+    def enqueue(self, item):
+        if not self.isFull():
+            self.rear = (self.rear + 1) % self.max_que_size
+            self.items[self.rear] = item
+        else:
+            self.dequeue()
+            self.rear = (self.rear + 1) % self.max_que_size
+            self.items[self.rear] = item
+    def dequeue(self):
+        if not self.isEmpty():
+            self.front = (self.front+1) % self.max_que_size
+            return self.items[self.front]
+        else:
+            pass
+
 class FedRef(flwr.server.strategy.FedAvg):
-    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module,dataset, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
+    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module,dataset, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.ref_net = ref_net
+        self.theta0 = [val.cpu().detach().numpy() for _, val in aggregated_net.state_dict().items()]
         self.aggregated_net = aggregated_net
         self.dataset = dataset
         self.validLoader = validLoader
         self.args = args
         self.evaluate_fn = self.evaluate_fn
+        self.p = p
+        self.aggs = CircleQueue(p)
+        self.losses = CircleQueue(1)
+        
+    def SetTheta0(self, ndarrays):
+        self.theta0 = ndarrays
+        
+        
     def aggregate_fit(self, server_round, results, failures):
-        clusters={}
         
         """Aggregate fit results using weighted average."""
         if not results:
@@ -97,115 +135,72 @@ class FedRef(flwr.server.strategy.FedAvg):
             return None, {}
 
         if self.inplace:
-            ref_ndarrays = [param.cpu().detach().numpy() for param in self.ref_net.parameters()]
             # Does in-place weighted average of results
             aggregated_ndarrays = aggregate_inplace(results)
         else:
-            ref_ndarrays = [param.cpu().detach().numpy() for param in self.ref_net.parameters()]
-            # Convert results
-            weights_results = [
-                (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
-                for _, fit_res in results
-            ]
-            total_sample = sum([int(fit_res.num_examples)
-                for _, fit_res in results])
-            
-            weighted_weights = [[layer * int(num_examples) / total_sample for layer in weights] for weights, num_examples in weights_results]
-            
-            for indx, client_params in  enumerate(weighted_weights):
-                clusters[f"client{indx+1}"] = cosine_distance_cal(ref_ndarrays, client_params)
-            
-            clusterv = np.array(list(clusters.values()))
-            data = clusterv
-            if self.args.type != "drive":
-                Dbscan = DBSCAN(eps=Adaptive_eps(ndarrays_to_arrays(data), 2), min_samples=2)
-            else:
-                Dbscan = DBSCAN(eps=0.1, min_samples=2)
-            cluster_index = Dbscan.fit_predict(ndarrays_to_arrays(data))
-            
-            print(cluster_index)
-            
-            uniq, count = np.unique(cluster_index, return_counts=True)
-            
-            ap = map(lambda v : ndarrays_to_arrays(v), weighted_weights)
-            dictionary = {u : 0 for u in uniq} 
-            
-            for label, p in zip(cluster_index, ap):
-                S = cosine_similarity_cal(p, ref_ndarrays)
-                dictionary[label] += sum(S)/len(S)
+            if server_round < self.p+1:
+                # Convert results
+                weights_results = [
+                    (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
+                    for _, fit_res in results
+                ]
+                aggregated_ndarrays = aggregate(weights_results)
+                self.aggs.enqueue(aggregated_ndarrays)
+                self.SetTheta0(aggregated_ndarrays)
+                aggLosses = [res.metrics["loss"] for _,res in results]
+                self.losses.enqueue(aggLosses)
+                parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
+                # Aggregate custom metrics if aggregation fn was provided
+                metrics_aggregated = {}
+                if self.fit_metrics_aggregation_fn:
+                    fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+                    metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+                elif server_round == 1:  # Only log this warning once
+                    log(WARNING, "No fit_metrics_aggregation_fn provided")
                 
-            weighted_sil = {u : 0 for u in uniq}
-            for u, c in zip(uniq, count):
-                weighted_sil[int(u)] = dictionary[int(u)]/int(c)
-            print(list(weighted_sil.values())) 
-            
-            selected_uniq = [key for key, value in weighted_sil.items() if value > self.args.alpha]
-            selected_index = reduce(lambda x,y : np.bitwise_or(x,y), [cluster_index==key for key in selected_uniq], [False]*len(cluster_index))
-            
-            if server_round in [0, 1, 2]:
-                aggregated_ndarrays = aggregate_inplace(results)
             else:
-                aggregated_ndarrays = aggregate([client_sample for client_sample, bool in zip(weights_results, selected_index) if bool])
-       
-        set_parameters(self.aggregated_net, aggregated_ndarrays)
-        if server_round in [0,1,2]:
-            bool = True
-        else:
-            if self.args.type == "octdl":
-                bool = comparing_net(self.ref_net, self.aggregated_net, "loss", self.dataset, self.validLoader, self.args)
-            else:
-                bool = comparing_net(self.ref_net, self.aggregated_net, metric, self.dataset, self.validLoader, self.args)
+                weights_results = [
+                    (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
+                    for _, fit_res in results
+                ]
+                aggregated_ndarrays = aggregate(weights_results)
+                self.aggs.enqueue(aggregated_ndarrays)
+                
+                aggLosses = [res.metrics["loss"] for _,res in results]
+                aggExampls = [res.num_examples for _,res in results]
+                aggTotalExamples = sum(aggExampls)
+                aggWeights = np.array(aggExampls)/aggTotalExamples
+                ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
+                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-t0 for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0)]
+                
+                self.SetTheta0(aggregated_ndarrays)
+                metrics_aggregated = {}
+                
+                if self.fit_metrics_aggregation_fn:
+                    fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+                    metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+                parameters_aggregated = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses.items[0], p1Weights=aggWeights, target_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
+                parameters_aggregated = ndarrays_to_parameters(parameters_aggregated)
+                self.losses.enqueue(aggLosses)
+                
+        return parameters_aggregated, metrics_aggregated
         
-        if bool:
+    def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target_netL1, Lambda=0.2):
+        p1 = [W1 - lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) + Lambda*(len(p1Losses)-1)*np.abs(W2)) for W1, W2 in zip(p1, target_netL1)]
+        return p1 
         
-            DV = [rp-ap for ap, rp in zip(ndarrays_to_arrays(aggregated_ndarrays), ndarrays_to_arrays(ref_ndarrays))]
-        
-            similar = cosine_similarity_cal(ndarrays_to_arrays(aggregated_ndarrays), ndarrays_to_arrays(ref_ndarrays))
-        
-            proposed_eq = [rp-(dv*(1-np.abs(sim))*OMEGA) for rp, dv, sim in zip(ndarrays_to_arrays(ref_ndarrays), DV, similar)]
-            
-            set_parameters(self.ref_net, proposed_eq)
-            
-            parameters_eq = ndarrays_to_parameters([w.cpu().detach().numpy()  for w in self.aggregated_net.parameters()])
-            
-            metrics_aggregated = {}
-            if self.fit_metrics_aggregation_fn:
-                fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
-                metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-            elif server_round == 1:  # Only log this warning once
-                log(WARNING, "No fit_metrics_aggregation_fn provided")
-
-            return parameters_eq, metrics_aggregated
-        else:
-        
-            DV = [ap-rp for ap, rp in zip(ndarrays_to_arrays(aggregated_ndarrays), ndarrays_to_arrays(ref_ndarrays))]
-        
-            similar = cosine_similarity_cal(ndarrays_to_arrays(aggregated_ndarrays), ndarrays_to_arrays(ref_ndarrays))
-        
-            
-            proposed_eq = [ap-(dv*(1-np.abs(sim))*OMEGA) for ap, dv, sim in zip(ndarrays_to_arrays(aggregated_ndarrays), DV, similar)]
-            
-            set_parameters(self.aggregated_net, proposed_eq)
-            
-            parameters_eq = ndarrays_to_parameters([w.cpu().detach().numpy() for w in self.aggregated_net.parameters()])
-
-            # Aggregate custom metrics if aggregation fn was provided
-            metrics_aggregated = {}
-            if self.fit_metrics_aggregation_fn:
-                fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
-                metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-            elif server_round == 1:  # Only log this warning once
-                log(WARNING, "No fit_metrics_aggregation_fn provided")
-
-            return parameters_eq, metrics_aggregated
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
-        lossf = CustomFocalDiceLoss() if not self.args.type=="octdl" else nn.BCEWithLogitsLoss(self.dataset.label_weight)
+        lossf = CustomFocalDiceLoss() if not self.args.type in ["octdl", "mnist", "cifar10"] else nn.BCEWithLogitsLoss()
         if self.args.type in ["drive"]:
             lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
+        if self.args.type == "mnist":
+            validF = MNISTValid
         if self.args.type in ["drive"]:
             validF = validDrive
+        if self.args.type == "cifar10":
+            validF = CIFAR10valid
         set_parameters(self.aggregated_net, parameters)
         history=validF(self.aggregated_net, self.validLoader, 0, lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)
