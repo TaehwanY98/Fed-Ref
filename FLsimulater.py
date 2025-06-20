@@ -219,7 +219,7 @@ if __name__ =="__main__":
         strategy = lwr.FedLWR(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, dataset, validLoader, args, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = ref.FedRef(ref_net, aggregated_net, dataset, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedprox":
         strategy = prox.FedProx(net, dataset, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)

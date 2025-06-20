@@ -5,6 +5,8 @@ Csv
 __pycache__
 .venv
 Result/fed*
+Result/img
+Result/central
 command.txt
 logs.log
 BRATS.ipynb
