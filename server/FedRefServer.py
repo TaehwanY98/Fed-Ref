@@ -108,11 +108,12 @@ class CircleQueue():
             pass
 
 class FedRef(flwr.server.strategy.FedAvg):
-    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module,dataset, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
+    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, dataset, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.ref_net = ref_net
         self.theta0 = [val.cpu().detach().numpy() for _, val in aggregated_net.state_dict().items()]
         self.aggregated_net = aggregated_net
+        self.lossf = lossf
         self.dataset = dataset
         self.validLoader = validLoader
         self.args = args
@@ -193,9 +194,6 @@ class FedRef(flwr.server.strategy.FedAvg):
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
-        lossf = CustomFocalDiceLoss() if not self.args.type in ["octdl", "mnist", "cifar10"] else nn.BCEWithLogitsLoss()
-        if self.args.type in ["drive"]:
-            lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
         if self.args.type == "mnist":
             validF = MNISTValid
@@ -204,17 +202,17 @@ class FedRef(flwr.server.strategy.FedAvg):
         if self.args.type == "cifar10":
             validF = CIFAR10valid
         set_parameters(self.aggregated_net, parameters)
-        history=validF(self.aggregated_net, self.validLoader, 0, lossf.to(DEVICE), DEVICE, True)
+        history=validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda0{int(self.args.lda*10)}_p{self.args.prime}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda0{int(self.args.lda*10)}_p{self.args.prime}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda0{int(self.args.lda*10)}_p{self.args.prime}.csv'), index=False)
-        save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net.pt")
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
+        save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
         # return super().aggregate_fit(server_round, results, failures)

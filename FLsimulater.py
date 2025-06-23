@@ -4,6 +4,7 @@ import server.FedLWRServer as lwr
 import server.FedPIDServer as pid
 import server.FedRefServer as ref
 import server.FedProxServer as prox
+import server.FedOptServer as opt
 import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -116,7 +117,19 @@ elif args.mode =="fedref":
         aggregated_net.to(DEVICE)
         ref_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
         ref_net.to(DEVICE)
-        
+
+if args.type == "octdl":
+    lossf = nn.BCEWithLogitsLoss().to(DEVICE)
+elif args.type in ["fets", "brats"] :
+    lossf = CustomFocalDiceLoss().to(DEVICE)
+elif args.type in ["drive"] :
+    lossf = CustomFocalDiceLossb().to(DEVICE)
+elif args.type == "mnist":
+    lossf = nn.CrossEntropyLoss().to(DEVICE)
+elif args.type == "cifar10":
+    lossf = nn.CrossEntropyLoss().to(DEVICE)
+
+
 if args.type == "fets":
     dataset = Fets2022(args.data_dir)
 if args.type == "brats":
@@ -126,11 +139,11 @@ if args.type == "octdl":
 if args.type == "drive":
     dataset = deeplake.load("hub://activeloop/drive-train")
 if args.type == "mnist":
-    dataset = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
-    validset = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+    dataset = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
+    validset = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
 if args.type == "cifar10":
-    dataset = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
-    validset = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.5), (0.5))]), None, True)
+    dataset = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
+    validset = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
 train_set = dataset
 validLoader = DataLoader(validset, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 if args.type == "fets":
@@ -179,23 +192,18 @@ def client_fn(context: Context):
         trainS, _ = random_split(trainset, [i, 1-i], torch.Generator("cpu").manual_seed(args.seed))
         train_loader = DataLoader(trainS, args.batch_size, shuffle=True, collate_fn=lambda x: x)
     if args.type == "octdl":
-        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
         trainF = oct.train
         validF = oct.valid
     elif args.type in ["fets", "brats"] :
-        lossf = CustomFocalDiceLoss().to(DEVICE)
         trainF = seg.train
         validF = seg.valid
     elif args.type in ["drive"] :
-        lossf = CustomFocalDiceLossb().to(DEVICE)
         trainF = seg.trainDrive
         validF = seg.validDrive
     elif args.type == "mnist":
-        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
         trainF = mnist.train
         validF = mnist.valid
     elif args.type == "cifar10":
-        lossf = nn.BCEWithLogitsLoss().to(DEVICE)
         trainF = cifar10.train
         validF = cifar10.valid
     if args.mode == "fedpid":
@@ -210,20 +218,22 @@ if __name__ =="__main__":
     seg.warnings.filterwarnings("ignore")
     seg.make_model_folder(f"./Models/{args.version}")
     if args.mode =="fedavg":
-        strategy = avg.FedAvg(net, dataset, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = avg.FedAvg(net, lossf, dataset, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+    #elif args.mode =="fedpid":
+    #   strategy = pid.FedPID(net, lossf, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
-    elif args.mode =="fedpid":
-        strategy = pid.FedPID(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-        
-    elif args.mode =="fedlwr":
-        strategy = lwr.FedLWR(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+    #elif args.mode =="fedlwr":
+    #    strategy = lwr.FedLWR(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, dataset, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = ref.FedRef(ref_net, aggregated_net, lossf, dataset, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedprox":
-        strategy = prox.FedProx(net, dataset, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = prox.FedProx(net, lossf, dataset, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
 
+    elif args.mode =="fedopt":
+        strategy = opt.FedOpt(net, lossf, dataset, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+    
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))
     

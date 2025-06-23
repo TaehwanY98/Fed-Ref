@@ -36,7 +36,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
             X= torch.stack([s[0] for s in sample], 0)
             Y= torch.Tensor([s[1] for s in sample])
             out = net(X.type(float32).to(DEVICE))
-            loss = lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 10).type(float32).squeeze().to(DEVICE))
+            loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -69,7 +69,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     
         out = net(X.type(float32).to(DEVICE)) 
 
-        losses += lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 10).type(float32).squeeze().to(DEVICE)).item()
+        losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
         
         Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
         Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()

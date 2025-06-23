@@ -21,10 +21,11 @@ from flwr.common import (
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FedAvg(flwr.server.strategy.FedAvg):
-    def __init__(self, net, dataset, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
+    def __init__(self, net, lossf, dataset, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.net = net
         self.args = args
+        self.lossf = lossf
         self.dataset= dataset
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
@@ -32,9 +33,6 @@ class FedAvg(flwr.server.strategy.FedAvg):
         return super().aggregate_fit(server_round, results, failures)
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
-        lossf = CustomFocalDiceLoss() if not self.args.type in ["octdl", "mnist", "cifar10", "cifar100"] else nn.BCEWithLogitsLoss()
-        if self.args.type in ["drive"]:
-            lossf = CustomFocalDiceLossb()
         validF= valid if not self.args.type=="octdl" else octValid
         if self.args.type=="mnist":
             validF = MNISTValid
@@ -43,7 +41,7 @@ class FedAvg(flwr.server.strategy.FedAvg):
         if self.args.type in ["drive"]:
             validF = validDrive
         set_parameters(self.net, parameters)
-        history=validF(self.net, self.validLoader, 0, lossf.to(DEVICE), DEVICE, True)
+        history=validF(self.net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:

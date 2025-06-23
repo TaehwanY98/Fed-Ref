@@ -15,14 +15,65 @@ from Network.Unet import *
 from Network.Loss import *
 import pandas as pd
 import os
+
 from flwr.common import (
+    MetricsAggregationFn,
+    NDArrays,
+    Parameters,
+    Scalar,
     parameters_to_ndarrays,
+    ndarrays_to_parameters
 )
+
+from typing import Callable, Optional
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class FedProx(flwr.server.strategy.FedProx):
-    def __init__(self, net, lossf, dataset, validLoader, args, proximal_mu=1,fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
-        super().__init__(proximal_mu=proximal_mu, fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn)
+class FedOpt(flwr.server.strategy.FedOpt):
+    def __init__(self, net, lossf, dataset, validLoader, args, fraction_fit: float = 1.0,
+        fraction_evaluate: float = 1.0,
+        min_fit_clients: int = 2,
+        min_evaluate_clients: int = 2,
+        min_available_clients: int = 2,
+        evaluate_fn: Optional[
+            Callable[
+                [int, NDArrays, dict[str, Scalar]],
+                Optional[tuple[float, dict[str, Scalar]]],
+            ]
+        ] = None,
+        on_fit_config_fn: Optional[Callable[[int], dict[str, Scalar]]] = None,
+        on_evaluate_config_fn: Optional[Callable[[int], dict[str, Scalar]]] = None,
+        accept_failures: bool = True,
+        initial_parameters: Parameters = None,
+        fit_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
+        evaluate_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
+        eta: float = 1e-1,
+        eta_l: float = 1e-1,
+        beta_1: float = 0.0,
+        beta_2: float = 0.0,
+        tau: float = 1e-9,
+    ) -> None:
+        super().__init__(
+            fraction_fit=fraction_fit,
+            fraction_evaluate=fraction_evaluate,
+            min_fit_clients=min_fit_clients,
+            min_evaluate_clients=min_evaluate_clients,
+            min_available_clients=min_available_clients,
+            evaluate_fn=evaluate_fn,
+            on_fit_config_fn=on_fit_config_fn,
+            on_evaluate_config_fn=on_evaluate_config_fn,
+            accept_failures=accept_failures,
+            initial_parameters=ndarrays_to_parameters(initial_parameters),
+            fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+            evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
+        )
+        self.eta = eta
+        self.eta_l = eta_l
+        self.tau = tau
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2
+        self.m_t: Optional[NDArrays] = None
+        self.v_t: Optional[NDArrays] = None
         self.net = net
         self.lossf = lossf
         self.args = args
@@ -45,12 +96,12 @@ class FedProx(flwr.server.strategy.FedProx):
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedProx_{self.args.type}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedOpt_{self.args.type}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedProx_{self.args.type}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedOpt_{self.args.type}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedProx_{self.args.type}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedOpt_{self.args.type}.csv'), index=False)
         save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
 def make_dir(path):
@@ -69,7 +120,6 @@ if __name__=="__main__":
     args = Federatedparser()
     make_model_folder(f"./Models/{args.version}")
     set_seeds(args)
-    
     
     if args.type == "fets":
         dataset = Fets2022(args.client_dir)
@@ -96,7 +146,7 @@ if __name__=="__main__":
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
     
     history = flwr.server.start_server(
-        server_address='[::]:8084',strategy=FedProx(net, dataset, validLoader, evaluate_fn=fl_evaluate, inplace=True, min_fit_clients=7, min_available_clients=7, min_evaluate_clients=7), 
+        server_address='[::]:8084',strategy=FedAvg(net, dataset, validLoader, evaluate_fn=fl_evaluate, inplace=True, min_fit_clients=7, min_available_clients=7, min_evaluate_clients=7), 
                            config=flwr.server.ServerConfig(num_rounds=args.round)
     )
     if args.type == 'fets':
