@@ -17,17 +17,12 @@ We focused on the model performance optimization and decreasing computing cost o
 ### FedRef: Communication-Efficient Bayesian Fine Tuning with Reference Model
 For optimal model performance and low client computing cost, we proposed FedRef: communication-efficient Bayesian fine tuning with reference model which overcome catastrophic forgetting by inferring of previous rounds model. Carefully we defined the model proximal term as a MAP problem for FL scenarios at equation derived in Bayesian fine tune paper.
 
-$$\theta^{*} = \arg\max_{\theta} [\log p( \theta|D_{ref})+
-\log p(D_1|\theta)+\nonumber\\ log p(D_2|\theta)+\dots + \log p(D_K|\theta)]$$
+<img src="./res/equation1.png" alt="MAP problem" width="500"/>
 
 Selected client number $k = [1,2,3,..,K]$, $K$ : total number of selected client number. $D_{ref}$: synthetic data of reference model. We proposed reference model concept as a model integrated with previous rounds model parameters. This type of concept enable to overcoming catastrophic forgetting on each round by integrating previous round features to the MAP problem.
 Finally objective function can be denoted by
 
-$$
-L_{ref}(\theta^1,\theta^2, \forall F)= \sum_{k}^{K} F_k \cdot \mathrm{diag}(W_1, \dots, W_K) \nonumber \\
-        + \lambda \sum_{i} (\theta^1_i - \theta^1_{0,i})^2
-        + \lambda \sum_{i} (\theta^2_i - \theta^2_{0,i})^2
-$$
+<img src="./res/equation2.png" alt="Bayesian" width="500"/>
 
 the constant value denoted $\sum_{k}^{K} F_k$: sum of clients' loss, The diagonal matrix $\mathrm{diag}(W_1, \dots, W_K)$ : aggregation weights (e.g. $\frac{n_i}{n}$), $\sum_{i} (\theta_i - \theta_{0,i})^2$ : $L_2$ regularization of model $\theta-\theta_0$. In terms of requirements of parameter, only clients' loss should be needed on our FedRef concept. And on only server side, performing as model optimization which can decrease the client computing cost and communication cost.
 
