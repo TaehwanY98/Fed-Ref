@@ -173,7 +173,8 @@ class FedRef(flwr.server.strategy.FedAvg):
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
                 ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
-                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-t0 for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
+                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), *self.theta0["ref"])]
+                
                 agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
                 
                 
