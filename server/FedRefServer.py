@@ -111,7 +111,7 @@ class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, dataset, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.ref_net = ref_net
-        self.theta0 = [val.cpu().detach().numpy() for _, val in aggregated_net.state_dict().items()]
+        self.theta0 ={"agg":[], "ref":[]}
         self.aggregated_net = aggregated_net
         self.lossf = lossf
         self.dataset = dataset
@@ -122,8 +122,9 @@ class FedRef(flwr.server.strategy.FedAvg):
         self.aggs = CircleQueue(p)
         self.losses = CircleQueue(1)
         
-    def SetTheta0(self, ndarrays):
-        self.theta0 = ndarrays
+    def SetTheta0(self, agg_ndarrays, ref_ndarrays):
+        self.theta0["agg"] = agg_ndarrays
+        self.theta0["ref"] = ref_ndarrays
         
         
     def aggregate_fit(self, server_round, results, failures):
@@ -147,7 +148,7 @@ class FedRef(flwr.server.strategy.FedAvg):
                 ]
                 aggregated_ndarrays = aggregate(weights_results)
                 self.aggs.enqueue(aggregated_ndarrays)
-                self.SetTheta0(aggregated_ndarrays)
+                self.SetTheta0(aggregated_ndarrays, [])
                 aggLosses = [res.metrics["loss"] for _,res in results]
                 self.losses.enqueue(aggLosses)
                 parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
@@ -172,11 +173,11 @@ class FedRef(flwr.server.strategy.FedAvg):
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
                 ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
-                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-t0 for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0)]
-                agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0)]
+                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-t0 for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
+                agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
                 
                 
-                self.SetTheta0(aggregated_ndarrays)
+                self.SetTheta0(aggregated_ndarrays, ref_ndarrays)
                 metrics_aggregated = {}
                 
                 if self.fit_metrics_aggregation_fn:
