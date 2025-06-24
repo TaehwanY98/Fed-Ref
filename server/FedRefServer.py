@@ -93,38 +93,29 @@ class CircleQueue():
     def clear(self):
         self.front = self.rear
     def enqueue(self, item):
-        if not self.isFull():
-            self.rear = (self.rear + 1) % self.max_que_size
-            self.items[self.rear] = item
-        else:
-            self.dequeue()
-            self.rear = (self.rear + 1) % self.max_que_size
-            self.items[self.rear] = item
-    def dequeue(self):
-        if not self.isEmpty():
-            self.front = (self.front+1) % self.max_que_size
-            return self.items[self.front]
-        else:
-            pass
+        self.rear = (self.rear + 1) % self.max_que_size
+        self.items[self.rear] = item
+        
 
 class FedRef(flwr.server.strategy.FedAvg):
-    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, dataset, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
+    def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.ref_net = ref_net
-        self.theta0 ={"agg":[], "ref":[]}
+        self.theta0 ={"agg":[], "ref": [val.cpu().detach().numpy() for val in self.ref_net.parameters()]}
         self.aggregated_net = aggregated_net
         self.lossf = lossf
-        self.dataset = dataset
+        # self.dataset = dataset
         self.validLoader = validLoader
         self.args = args
         self.evaluate_fn = self.evaluate_fn
         self.p = p
         self.aggs = CircleQueue(p)
-        self.losses = CircleQueue(1)
+        self.losses = [None]
         
     def SetTheta0(self, agg_ndarrays, ref_ndarrays):
         self.theta0["agg"] = agg_ndarrays
-        self.theta0["ref"] = ref_ndarrays
+        if ref_ndarrays is not None:
+            self.theta0["ref"] = ref_ndarrays
         
         
     def aggregate_fit(self, server_round, results, failures):
@@ -148,9 +139,9 @@ class FedRef(flwr.server.strategy.FedAvg):
                 ]
                 aggregated_ndarrays = aggregate(weights_results)
                 self.aggs.enqueue(aggregated_ndarrays)
-                self.SetTheta0(aggregated_ndarrays, [])
+                self.SetTheta0(aggregated_ndarrays, None)
                 aggLosses = [res.metrics["loss"] for _,res in results]
-                self.losses.enqueue(aggLosses)
+                self.losses[0]=aggLosses
                 parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
                 # Aggregate custom metrics if aggregation fn was provided
                 metrics_aggregated = {}
@@ -173,20 +164,20 @@ class FedRef(flwr.server.strategy.FedAvg):
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
                 ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
-                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), *self.theta0["ref"])]
+                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
                 
                 agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
                 
                 
-                self.SetTheta0(aggregated_ndarrays, ref_ndarrays)
+                self.SetTheta0(aggregated_ndarrays, [reduce(np.add, layer) / self.aggs.max_que_size for layer in zip(*ref_ndarrays)])
                 metrics_aggregated = {}
                 
                 if self.fit_metrics_aggregation_fn:
                     fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
                     metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-                parameters_aggregated = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses.items[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
+                parameters_aggregated = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
                 parameters_aggregated = ndarrays_to_parameters(parameters_aggregated)
-                self.losses.enqueue(aggLosses)
+                self.losses[0]=aggLosses
                 
         return parameters_aggregated, metrics_aggregated
         

@@ -1,7 +1,5 @@
 from flwr.common import Context
 import server.FedAvgServer as avg
-import server.FedLWRServer as lwr
-import server.FedPIDServer as pid
 import server.FedRefServer as ref
 import server.FedProxServer as prox
 import server.FedOptServer as opt
@@ -131,21 +129,21 @@ elif args.type == "cifar10":
 
 
 if args.type == "fets":
-    dataset = Fets2022(args.data_dir)
-if args.type == "brats":
-    dataset = BRATS(args.data_dir)
-if args.type == "octdl":
-    dataset = OCTDL(args.data_dir)
-if args.type == "drive":
-    dataset = deeplake.load("hub://activeloop/drive-train")
-if args.type == "mnist":
-    dataset = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
-    validset = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
-if args.type == "cifar10":
-    dataset = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
-    validset = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
-train_set = dataset
-validLoader = DataLoader(validset, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+    train_set = Fets2022(args.data_dir)
+elif args.type == "brats":
+    train_set = BRATS(args.data_dir)
+elif args.type == "octdl":
+    train_set = OCTDL(args.data_dir)
+elif args.type == "drive":
+    train_set = deeplake.load("hub://activeloop/drive-train")
+elif args.type == "mnist":
+    train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
+    valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
+    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+elif args.type == "cifar10":
+    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
+    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
+    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
 if args.type == "brats":
@@ -187,7 +185,7 @@ def client_fn(context: Context):
         if args.test:
             i = 0.01
         else:
-            i = random.randint(2, 5)/10
+            i = random.randint(4, 9)/10
             
         trainS, _ = random_split(trainset, [i, 1-i], torch.Generator("cpu").manual_seed(args.seed))
         train_loader = DataLoader(trainS, args.batch_size, shuffle=True, collate_fn=lambda x: x)
@@ -218,7 +216,7 @@ if __name__ =="__main__":
     seg.warnings.filterwarnings("ignore")
     seg.make_model_folder(f"./Models/{args.version}")
     if args.mode =="fedavg":
-        strategy = avg.FedAvg(net, lossf, dataset, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     #elif args.mode =="fedpid":
     #   strategy = pid.FedPID(net, lossf, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
@@ -226,13 +224,13 @@ if __name__ =="__main__":
     #    strategy = lwr.FedLWR(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, lossf, dataset, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedprox":
-        strategy = prox.FedProx(net, lossf, dataset, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
 
     elif args.mode =="fedopt":
-        strategy = opt.FedOpt(net, lossf, dataset, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
     
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))
@@ -242,7 +240,7 @@ if __name__ =="__main__":
      client_app= fl.client.ClientApp(client_fn=client_fn),
      server_app= fl.server.ServerApp(server_fn=server_fn),
      num_supernodes= args.client_num,
-     backend_config={"client_resources": {"num_cpus": args.client_num , "num_gpus": 1}},
+     backend_config={"client_resources": {"num_cpus": 1.0 , "num_gpus": 1}},
      verbose_logging=False
     )
     else:
@@ -250,7 +248,7 @@ if __name__ =="__main__":
      client_app= fl.client.ClientApp(client_fn=client_fn),
      server_app= fl.server.ServerApp(server_fn=server_fn),
      num_supernodes= args.client_num,
-     backend_config={"client_resources": {"num_cpus": args.client_num, "num_gpus": 0}},
+     backend_config={"client_resources": {"num_cpus": 24, "num_gpus": 0}},
      verbose_logging=False
     )
     

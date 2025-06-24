@@ -30,7 +30,7 @@ from typing import Callable, Optional
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FedOpt(flwr.server.strategy.FedOpt):
-    def __init__(self, net, lossf, dataset, validLoader, args, fraction_fit: float = 1.0,
+    def __init__(self, net, lossf, validLoader, args, fraction_fit: float = 1.0,
         fraction_evaluate: float = 1.0,
         min_fit_clients: int = 2,
         min_evaluate_clients: int = 2,
@@ -77,7 +77,6 @@ class FedOpt(flwr.server.strategy.FedOpt):
         self.net = net
         self.lossf = lossf
         self.args = args
-        self.dataset= dataset
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
     def aggregate_fit(self, server_round, results, failures):
