@@ -164,21 +164,24 @@ class FedRef(flwr.server.strategy.FedAvg):
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
                 ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
-                ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
                 
-                agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
+                if server_round>self.p+1:
+                    ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
+                    agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
                 
-                
-                self.SetTheta0(aggregated_ndarrays, [reduce(np.add, layer) / self.aggs.max_que_size for layer in zip(*ref_ndarrays)])
                 metrics_aggregated = {}
-                
                 if self.fit_metrics_aggregation_fn:
                     fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
                     metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-                parameters_aggregated = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
-                parameters_aggregated = ndarrays_to_parameters(parameters_aggregated)
-                self.losses[0]=aggLosses
+                    
                 
+                if server_round>self.p+1:
+                    out = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
+                    parameters_aggregated = ndarrays_to_parameters(out)
+                else:
+                    parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
+                self.losses[0]=aggLosses
+                self.SetTheta0([layer for layer in aggregated_ndarrays], [reduce(np.add, layer) / self.aggs.max_que_size for layer in zip(*ref_ndarrays)])
         return parameters_aggregated, metrics_aggregated
         
     def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda=0.2):

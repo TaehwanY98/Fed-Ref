@@ -127,7 +127,7 @@ class CustomClient(flwr.client.Client):
 
 class CustomNumpyClient(flwr.client.NumPyClient):
     context: Context
-    def __init__(self, net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, args, trainF=train, validF=valid):
+    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args, trainF=train, validF=valid):
         super().__init__()
         self.net = net
         self.train_loader = train_loader

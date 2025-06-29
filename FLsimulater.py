@@ -7,7 +7,7 @@ import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets
-from torchvision.transforms import Compose, ToTensor, Normalize
+from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 from utils import parser
 import utils.train as seg
 import utils.octTrain as oct
@@ -18,7 +18,7 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from clients import client, clientPID
+from clients import clientPID, client
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
@@ -137,12 +137,12 @@ elif args.type == "octdl":
 elif args.type == "drive":
     train_set = deeplake.load("hub://activeloop/drive-train")
 elif args.type == "mnist":
-    train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
-    valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]), None, True)
+    train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
+    valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
     validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "cifar10":
-    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
-    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010))]), None, True)
+    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
+    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
     validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
@@ -185,7 +185,7 @@ def client_fn(context: Context):
         if args.test:
             i = 0.01
         else:
-            i = random.randint(4, 9)/10
+            i = random.randint(5, 9)/10
             
         trainS, _ = random_split(trainset, [i, 1-i], torch.Generator("cpu").manual_seed(args.seed))
         train_loader = DataLoader(trainS, args.batch_size, shuffle=True, collate_fn=lambda x: x)
@@ -205,9 +205,9 @@ def client_fn(context: Context):
         trainF = cifar10.train
         validF = cifar10.valid
     if args.mode == "fedpid":
-        return clientPID.CustomNumpyClient(net, train_loader, validLoader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return clientPID.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedref":
-        return clientPID.CustomNumpyClient(aggregated_net, train_loader, validLoader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return clientPID.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else :
         return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     
@@ -248,7 +248,7 @@ if __name__ =="__main__":
      client_app= fl.client.ClientApp(client_fn=client_fn),
      server_app= fl.server.ServerApp(server_fn=server_fn),
      num_supernodes= args.client_num,
-     backend_config={"client_resources": {"num_cpus": 24, "num_gpus": 0}},
+     backend_config={"client_resources": {"num_cpus": 1.0, "num_gpus": 0}},
      verbose_logging=False
     )
     

@@ -205,8 +205,8 @@ def validDrive(net, valid_loader, e, lossf, DEVICE, Central=False):
         Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
         Dicenary[f"mHF95"] += hf95f(out.squeeze(), Y.type(torch.float32).to(DEVICE)).item()
 
-    if Central:
-        print(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
+    # if Central:
+    #     print(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
         
     return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length}
 
