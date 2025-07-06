@@ -20,7 +20,7 @@ from flwr.common import (
 )
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class FedAvg(flwr.server.strategy.FedAdam):
+class FedAdam(flwr.server.strategy.FedAdam):
     def __init__(self, net, lossf, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None):
         super().__init__(
             fraction_fit=fraction_fit,
