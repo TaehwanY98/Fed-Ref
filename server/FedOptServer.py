@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Tuple
 import flwr
 import torch
 from torch import save
-from utils.train import valid ,validDrive
+from utils.TumorTrain import valid ,validDrive
 from utils.octTrain import valid as octValid
 from utils.MNISTTrain import valid as MNISTValid
 from utils.CIFAR10Train import valid as CIFAR10Valid

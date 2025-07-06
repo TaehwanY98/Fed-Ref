@@ -39,3 +39,17 @@ the constant value denoted $\sum_{k}^{K} F_k$: sum of clients' loss, The diagona
 | Tools            | Visual studio code                              |
 
 ### Results
+
+### Run
+
+Available FL Strategies
+1. FedAvg
+2. FedProx
+3. FedOpt
+4. FedAdagrad
+5. FedAdam
+6. FedYogi
+7. FedRef 
+(our proposed work.)
+
+! python main.py --version "AnyName" --type " fets|brats|octdl " --seed "AnyNumber"--round "Round-Number" --epoch "LocalTrainingEpoch-Number" --batch-size "fets:1 |brats:1 | octdl:ProperNumber"--data-dir "TestData-Folder" --client-dir "Train-Client-Partitions-Folder" --lr "LearningRate" --alpha "only_used_fedref" --mode "fedavg|fedprox|fedopt|fedref|fedadagrad|fedadam|fedyogi"--client-num "total number of clients[1, 10]" --gpu True| False --result-path "path"
