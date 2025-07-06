@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import datasets
 from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 from utils import parser
-import utils.train as seg
+import utils.TumorTrain as seg
 import utils.octTrain as oct
 import utils.MNISTTrain as mnist
 import utils.CIFAR10Train as cifar10
@@ -25,7 +25,6 @@ from clients import clientPID, client
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
-from sklearn.datasets import fetch_openml
 import deeplake
 import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

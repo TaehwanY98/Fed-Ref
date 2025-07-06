@@ -1,18 +1,7 @@
 import flwr 
 import torch
-from torch.utils.data import DataLoader
-from torch.optim import SGD
-from utils.train import train, valid, CustomFocalDiceLoss
-import utils.octTrain as oct 
-import warnings
-from utils.parser import Federatedparser
-from utils import parser
-from utils.CustomDataset import Fets2022, BRATS, OCTDL
 import numpy as np
 import random
-from Network.Unet import *
-from Network.Loss import *
-from Network.Resnet import *
 
 # from Network.pytorch3dunet.unet3d.losses import BCEDiceLoss
 from flwr.common import (
@@ -29,15 +18,10 @@ from flwr.common import (
     ndarrays_to_parameters,
     parameters_to_ndarrays,
 )
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if __name__ =="__main__":
-    args = Federatedparser()
-else:    
-    args = parser.argparse.ArgumentParser()
     
 class CustomClient(flwr.client.Client):
     context: Context
-    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args,trainF=train, validF=valid):
+    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args,trainF=lambda x: x, validF=lambda x: x):
         super().__init__()
         self.net = net
         self.train_loader = train_loader
@@ -103,7 +87,7 @@ class CustomClient(flwr.client.Client):
     
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
-            old.data = torch.Tensor(new).to(DEVICE)
+            old.data = torch.Tensor(new).to(self.DEVICE)
         
     def fit(self, ins: FitIns):
         self.set_parameters(parameters_to_ndarrays(ins.parameters))
@@ -122,7 +106,7 @@ class CustomClient(flwr.client.Client):
 
 class CustomNumpyClient(flwr.client.NumPyClient):
     context: Context
-    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args, trainF=train, validF=valid):
+    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args, trainF=lambda x: x, validF=lambda x: x):
         super().__init__()
         self.net = net
         self.train_loader = train_loader
@@ -135,7 +119,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         self.args = args
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
-            old.data = torch.Tensor(new).to(DEVICE)
+            old.data = torch.Tensor(new).to(self.DEVICE)
     def get_parameters(self, config={}):
         return [val.cpu().detach().numpy() for val in self.net.parameters()]
     def fit(self, parameters, config={}):
@@ -150,38 +134,3 @@ def seeding(args):
     torch.cuda.manual_seed_all(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
-
-if __name__ =="__main__":
-    warnings.filterwarnings("ignore")
-    seeding(args)
-    if args.type == "fets":
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-    if args.type == "brats":
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-    if args.type == "octdl":
-        net = ResNet()
-    net.to(DEVICE)
-    
-    if args.type == "fets":
-        trainset = Fets2022(args.client_dir)
-        trainF = train
-        validF = valid
-        lossf = CustomFocalDiceLoss()
-    elif args.type == "brats":
-        trainset = BRATS(args.client_dir)
-        trainF = train
-        validF = valid
-        lossf = CustomFocalDiceLoss()
-    elif args.type == "octdl":
-        trainset = OCTDL(args.client_dir)
-        trainF = oct.train
-        validF = oct.valid
-        lossf = nn.BCEWithLogitsLoss(trainset.label_weight)
-    trainLoader = DataLoader(trainset, args.batch_size, True, collate_fn=lambda x: x)
-    optimizer = SGD(net.parameters(), lr=args.lr)
-    
-    flwr.client.start_client(
-        server_address=f"{args.IPv4}:8084", client= CustomClient(net, trainLoader, args.epoch, lossf, optimizer, DEVICE, args, 
-                                                                 trainF=trainF , 
-                                                                 validF=validF)
-    )

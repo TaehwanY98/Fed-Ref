@@ -1,18 +1,12 @@
 from typing import Dict, List, Optional, Tuple
 import flwr
 import torch
-import warnings
-from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, set_seeds, CustomFocalDiceLossb, CustomFocalDiceLoss,validDrive
+from utils.train import valid ,validDrive
 from utils.octTrain import valid as octValid
 from utils.MNISTTrain import valid as MNISTValid
 from utils.CIFAR10Train import valid as CIFAR10Valid
-from utils.parser import Federatedparser
-from utils.CustomDataset import Fets2022, BRATS, OCTDL
-from Network.Resnet import *
-from Network.Unet import *
-from Network.Loss import *
+from torch import nn
 import pandas as pd
 import os
 from flwr.common import (
@@ -62,47 +56,3 @@ def make_dir(path):
 def set_parameters(net, parameters):
     for old, new in zip(net.parameters(), parameters):
         old.data = torch.Tensor(new).to(DEVICE)
-
-if __name__=="__main__":
-    warnings.filterwarnings("ignore")
-    args = Federatedparser()
-    make_model_folder(f"./Models/{args.version}")
-    set_seeds(args)
-    
-    if args.type == "fets":
-        dataset = Fets2022(args.client_dir)
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-    if args.type == "brats":
-        dataset = BRATS(args.client_dir)
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-    if args.type == "octdl":
-        dataset = OCTDL(args.client_dir)
-        net = ResNet()
-    net.to(DEVICE)
-    validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
- 
-    def fl_save(server_round:int, parameters: flwr.common.NDArrays, config:Dict[str, flwr.common.Scalar], validF=valid)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
-        set_parameters(net, parameters)
-        save(net.state_dict(), f"./Models/{args.version}/net.pt")
-        print("model is saved")
-        return 0, {}
-
-    def fl_evaluate(server_round:int, parameters: flwr.common.NDArrays, config:Dict[str, flwr.common.Scalar], validF= valid if not args.type=="octdl" else octValid, lossf = CustomFocalDiceLoss() if not args.type=="octdl" else nn.BCEWithLogitsLoss(dataset.label_weight))-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
-        set_parameters(net, parameters)
-        history=validF(net, validLoader, 0, lossf.to(DEVICE), DEVICE, True)
-        save(net.state_dict(), f"./Models/{args.version}/net.pt")
-        return history['loss'], {key:value for key, value in history.items() if key != "loss" }
-    
-    history = flwr.server.start_server(
-        server_address='[::]:8084',strategy=FedAvg(net, dataset, validLoader, evaluate_fn=fl_evaluate, inplace=True, min_fit_clients=7, min_available_clients=7, min_evaluate_clients=7), 
-                           config=flwr.server.ServerConfig(num_rounds=args.round)
-    )
-    if args.type == 'fets':
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedAvg_fets.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedAvg_loss_fets.csv", index=False)
-    elif args.type == "brats":
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedAvg_BRATS.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedAvg_loss_BRATS.csv", index=False)
-    elif args.type == "octdl":
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_OCTDL.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_OCTDL.csv", index=False)

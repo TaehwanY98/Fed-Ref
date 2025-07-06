@@ -4,80 +4,22 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 import flwr
-import warnings
+from torch import nn
 import numpy as np
 from flwr.common.logger import log
 from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
-from torch.utils.data import DataLoader
 from torch import save
-from utils.train import valid , make_model_folder, CustomFocalDiceLoss, CustomFocalDiceLossb, set_seeds, validDrive
+from utils.train import valid , validDrive
 from utils.octTrain import valid as octValid
 from utils.MNISTTrain import valid as MNISTValid
 from utils.CIFAR10Train import valid as CIFAR10valid
-from utils.parser import Federatedparser
-from utils.CustomDataset import Fets2022, BRATS, OCTDL
-from Network.Unet import *
-from Network.Loss import *
-from Network.Resnet import ResNet
 from logging import WARNING
-from sklearn.metrics.pairwise import cosine_similarity, cosine_distances
-from sklearn.cluster import DBSCAN
-from sklearn.neighbors import NearestNeighbors 
 import pandas as pd
 import torch
 from functools import reduce
 import os
-metric = "loss"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-OMEGA = 0.7
-
-def ndarrays_to_arrays(param):
-    return [np.nan_to_num(v.flatten(), posinf=0.0, neginf=0.0, nan=0.0) for v in param]
-
-def cosine_similarity_cal(X, Y):
-    try:
-        cosine = [cosine_similarity(x.reshape(1, -1),y.reshape(1, -1))[0]  for x,y in zip(X,Y)]
-    except:
-        cosine = [cosine_similarity(x,y)[0]  for x,y in zip(X,Y)]
-    return [float(param[0]) for param in cosine]
-
-def comparing_net(ref_net, aggregated_net, metric, dataset, validLoader,args):
-    validF=valid if not args.type=="octdl" else octValid
-    if args.type == "drive":
-        validF = validDrive
-    lossf = CustomFocalDiceLoss() if not args.type=="octdl" else nn.BCEWithLogitsLoss(dataset.label_weight)
-    if args.type == "drive":
-        lossf = CustomFocalDiceLossb()
-    history1=validF(aggregated_net, validLoader, 0, lossf.to(DEVICE), DEVICE)
-    history2=validF(ref_net, validLoader, 0, lossf.to(DEVICE), DEVICE)
-
-    if history1[metric]>history2[metric]:
-        if 'loss' in metric:
-            return False
-        return True
-    else:
-        if 'loss' in metric:
-            return True
-        return False
-    
-def cosine_distance_cal(X,Y):
-    try:
-        cosine = [cosine_distances(x.reshape(1, -1),y.reshape(1,-1))[0] for x,y in zip(X,Y)]
-    except:
-        cosine = [cosine_distances(x,y)[0] for x,y in zip(X,Y)]
-    return [param.astype("float32") for param in cosine]
-
-def Adaptive_eps(data, min_samples):
-    # 1. Estimate local density
-    neighbors = NearestNeighbors(n_neighbors=min_samples)
-    neighbors.fit(data)
-    distances, _ = neighbors.kneighbors(data)
-    distances = distances[:, -1]  # Distances to k-th nearest neighbor
-    # 2. Calculate adaptive epsilon
-    epsilon = distances  # Adjust this factor as needed
-    return float(np.nan_to_num(epsilon.mean(), nan=0.0, posinf=0.1, neginf=0.1))
 
 class CircleQueue():
     def __init__(self, max_queue_size):
@@ -104,7 +46,6 @@ class FedRef(flwr.server.strategy.FedAvg):
         self.theta0 ={"agg":[], "ref": [val.cpu().detach().numpy() for val in self.ref_net.parameters()]}
         self.aggregated_net = aggregated_net
         self.lossf = lossf
-        # self.dataset = dataset
         self.validLoader = validLoader
         self.args = args
         self.evaluate_fn = self.evaluate_fn
@@ -211,7 +152,6 @@ class FedRef(flwr.server.strategy.FedAvg):
         save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
-        # return super().aggregate_fit(server_round, results, failures)
 def make_dir(path):
     if os.path.exists(path):
         pass
@@ -222,41 +162,3 @@ def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
         shape = old.data.size()
         old.data = torch.Tensor(new).view(shape).to(DEVICE)
-
-if __name__=="__main__":
-    warnings.filterwarnings("ignore")
-    args = Federatedparser()
-    set_seeds(args)
-    make_model_folder(f"./Models/{args.version}")
-    
-    if args.type in ["fets", "brats"]:
-        aggregated_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-        aggregated_net.to(DEVICE)
-        ref_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-        ref_net.to(DEVICE)
-    elif args.type in "octdl":
-        aggregated_net = ResNet()
-        aggregated_net.to(DEVICE)
-        ref_net = ResNet()
-        ref_net.to(DEVICE)
-    if args.type == "fets":
-        dataset = Fets2022(args.client_dir)
-    if args.type == "brats":
-        dataset = BRATS(args.client_dir)
-    if args.type == "octdl":
-        dataset = OCTDL(args.client_dir)
-    validLoader = DataLoader(dataset, args.batch_size, False, collate_fn=lambda x: x)
-    
-    history = flwr.server.start_server(
-        server_address='[::]:8084',strategy=FedRef(ref_net, aggregated_net, dataset, validLoader, args, inplace=False, min_fit_clients=7, min_available_clients=7, min_evaluate_clients=7), 
-                           config=flwr.server.ServerConfig(num_rounds=args.round)
-    )
-    if args.type == 'fets':
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_fets.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_fets.csv", index=False)
-    elif args.type == "brats":
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_BRATS.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_BRATS.csv", index=False)
-    elif args.type == "octdl":
-        pd.DataFrame(history.metrics_centralized).to_csv("./Result/FedRef_OCTDL.csv", index=False)
-        pd.DataFrame(history.losses_centralized).to_csv("./Result/FedRef_loss_OCTDL.csv", index=False)
