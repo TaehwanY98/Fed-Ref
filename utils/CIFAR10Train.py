@@ -36,7 +36,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
             X= torch.stack([s[0] for s in sample], 0)
             Y= torch.Tensor([s[1] for s in sample])
             out = net(X.type(float32).to(DEVICE))
-            loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
+            loss = lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), num_classes=10).type(float32).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -57,11 +57,11 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    Dicenary = {'accuracy':0, 'f1score':0}
+    # Dicenary = {'accuracy':0, 'f1score':0}
     length = len(valid_loader) 
     losses = 0
-    accf = Accuracy("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
-    f1scoref = F1Score("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
+    # accf = Accuracy("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
+    # f1scoref = F1Score("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([s[0] for s in sample], 0)
@@ -69,15 +69,15 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     
         out = net(X.type(float32).to(DEVICE)) 
 
-        losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        losses += lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), num_classes=10).type(float32).to(DEVICE)).item()
         
-        Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        # Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        # Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
 
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
-        
-    return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
+    return {"loss": losses/length}
+    # return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
 
 
 def set_seeds(seed:int):

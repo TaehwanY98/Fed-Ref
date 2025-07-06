@@ -3,6 +3,9 @@ import server.FedAvgServer as avg
 import server.FedRefServer as ref
 import server.FedProxServer as prox
 import server.FedOptServer as opt
+import server.FedAdagradServer as adagrad
+import server.FedAdamServer as adam
+import server.FedYogiServer as yogi
 import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -125,7 +128,7 @@ elif args.type in ["drive"] :
 elif args.type == "mnist":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "cifar10":
-    lossf = nn.CrossEntropyLoss().to(DEVICE)
+    lossf = nn.CrossEntropyLoss(label_smoothing=0.1, reduction="mean").to(DEVICE)
 
 
 if args.type == "fets":
@@ -204,12 +207,13 @@ def client_fn(context: Context):
     elif args.type == "cifar10":
         trainF = cifar10.train
         validF = cifar10.valid
-    if args.mode == "fedpid":
-        return clientPID.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-    elif args.mode == "fedref":
+    if args.mode == "fedref":
         return clientPID.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-    else :
+    elif args.mode in ["fedavg", "fedprox", "fedopt", "fedyogi", "fedadam", "fedadagrad"]:
         return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    else:
+        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
+    
     
 
 if __name__ =="__main__":
@@ -217,20 +221,26 @@ if __name__ =="__main__":
     seg.make_model_folder(f"./Models/{args.version}")
     if args.mode =="fedavg":
         strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-    #elif args.mode =="fedpid":
-    #   strategy = pid.FedPID(net, lossf, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-        
-    #elif args.mode =="fedlwr":
-    #    strategy = lwr.FedLWR(net, dataset, validLoader, args, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedref":
         strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
         
     elif args.mode =="fedprox":
         strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-
     elif args.mode =="fedopt":
         strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+    elif args.mode =="fedyogi":
+        strategy = yogi.FedYogi(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+    elif args.mode =="fedadam":
+        strategy = adam.FedAdam(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+    elif args.mode =="fedadagrad":
+        strategy = adagrad.FedAdagrad(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+    else:
+        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
+    
+    
+    
+    
     
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))

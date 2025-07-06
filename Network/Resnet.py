@@ -4,7 +4,7 @@ class ResNet(nn.Module):
     def __init__(self, outdim=7,*args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resnet = resnet50(False)
-        self.resnet.fc = nn.Sequential(nn.Linear(2048, outdim), nn.Sigmoid())
+        self.resnet.fc = nn.Sequential(nn.Linear(2048, outdim))
         for m in [m for m in self.children()][:-2]:
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_uniform_(m.weight.data, nonlinearity='relu')
