@@ -1,25 +1,13 @@
-import sys
-import getpass
 import os
-sys.path.append(os.path.join("/home",getpass.getuser(), "MICCAI"))
-
-
 import segmentation_models_pytorch as smp
 from Network.pytorch3dunet.unet3d.losses import DiceLoss
-from Network.Unet import Custom3DUnet, Custom2DUnet
-from CustomDataset import Fets2022, BRATS
-from parser import Centralparser
 import numpy as np
-import warnings
 import random
 from tqdm import tqdm
 import pandas as pd
 from torch import nn, int64,float32, save
-from torch.utils.data import DataLoader, random_split
-from torch.optim import SGD
 import torch
 from torch.nn.functional import one_hot
-import deeplake
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 diceLoss = smp.losses.DiceLoss(
@@ -234,52 +222,3 @@ class Hausdorff95(nn.Module):
     def forward(self, x, y):
         maximum_d=torch.max(self.distance(x, y))
         return maximum_d
-
-def main():
-    warnings.filterwarnings("ignore")
-    print("==== Centralized Learning ====")
-    args = Centralparser()
-    
-    make_model_folder(f"./Models/{args.version}")
-    set_seeds(args)
-
-    if args.type !="drive":
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
-    else:
-        net = Custom2DUnet(3, 1, True, 4, "cr", num_groups=4)
-    if args.pretrained:
-        net.load_state_dict(torch.load(f"./Models/{args.version}/net.pt"))
-    
-    net.to(DEVICE)
-    if args.type !="drive":
-        lossf = CustomFocalDiceLoss()
-    else:
-        lossf = CustomFocalDiceLossb()
-    lossf.to(DEVICE)
-    optimizer = SGD(net.parameters(), lr = args.lr)
-    print("==== 모델 아키텍처 ====")
-    print(net)
-    print("==== Loss ====")
-    print(lossf.__class__.__name__)
-    print("==== Args ====")
-    print(f"seed value: {args.seed}")
-    print(f"epoch number: {args.epoch}")
-    if args.type == "fets":
-        dataset = Fets2022(args.data_dir)
-    elif args.type == "brats":
-        dataset = BRATS(args.data_dir)
-    elif args.type =="drive":
-        dataset =  deeplake.load("hub://activeloop/drive-train")
-    train_dataset, valid_dataset = random_split(dataset, [0.9,0.1], torch.Generator().manual_seed(args.seed))
-    train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
-    valid_loader = DataLoader(valid_dataset, args.batch_size, shuffle=False, collate_fn=lambda x:x)
-    print("==== Training ====")
-    if args.type !="drive":
-        history = train(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
-    else:
-        history = trainDrive(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
-    to_csv(history, args.version)
-
-if __name__=="__main__":
-    main()
-    

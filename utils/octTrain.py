@@ -11,17 +11,9 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD
 import torch
 from torch.nn.functional import one_hot
-import sys
-if __name__=="__main__":
-    sys.path.append("../Network")
-    from Resnet import ResNet
-else:
-    from Network.Resnet import ResNet
 from torchmetrics.classification import Accuracy, F1Score
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 def make_model_folder(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
@@ -93,40 +85,4 @@ def set_seeds(seed:int):
 def to_csv(history, file_name):
     pd.DataFrame(history, index=None).to_csv(f"./Csv/{file_name}.csv")
 
-
-def main():
-    warnings.filterwarnings("ignore")
-    print("==== Centralized Learning ====")
-    args = Centralparser()
-    
-    make_model_folder(f"./Models/{args.version}")
-    set_seeds(args.seed)
-
-    
-    net = ResNet()
-    if args.pretrained:
-        net.load_state_dict(torch.load(f"./Models/{args.version}/net.pt"))
-    
-    net.to(DEVICE)
-    dataset = OCTDL(args.data_dir)
-    lossf = nn.BCEWithLogitsLoss(dataset.label_weight)
-    lossf.to(DEVICE)
-    optimizer = SGD(net.parameters(), lr = args.lr)
-    print("==== 모델 아키텍처 ====")
-    print(net)
-    print("==== Loss ====")
-    print(lossf.__class__.__name__)
-    print("==== Args ====")
-    print(f"seed value: {args.seed}")
-    print(f"epoch number: {args.epoch}")
-    
-    train_dataset, valid_dataset = random_split(dataset, [0.9,0.1], torch.Generator().manual_seed(args.seed))
-    train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
-    valid_loader = DataLoader(valid_dataset, args.batch_size, shuffle=False, collate_fn=lambda x:x)
-    print("==== Training ====")
-    history = train(net, train_loader, valid_loader, args.epoch, lossf, optimizer, DEVICE, args.version)
-    to_csv(history, args.version)
-
-if __name__=="__main__":
-    main()
     

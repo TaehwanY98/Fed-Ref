@@ -21,12 +21,13 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from clients import clientPID, client
+from clients import client, clientProxy, clientOpt, clientAdam, clientAdagrad, clientRef, clientYogi
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
 import deeplake
 import random
+import warnings
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args = parser.Simulationparser()
 seg.set_seeds(args)
@@ -206,17 +207,27 @@ def client_fn(context: Context):
     elif args.type == "cifar10":
         trainF = cifar10.train
         validF = cifar10.valid
-    if args.mode == "fedref":
-        return clientPID.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
-    elif args.mode in ["fedavg", "fedprox", "fedopt", "fedyogi", "fedadam", "fedadagrad"]:
+    if args.mode in ["fedref"]:
+        return clientRef.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedavg"]:
         return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedprox"]:
+        return clientProxy.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedopt"]:
+        return clientOpt.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedyogi"]:
+        return clientYogi.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedadam"]:
+        return clientAdam.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode in ["fedadagrad"]:
+        return clientAdagrad.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
     
     
 
 if __name__ =="__main__":
-    seg.warnings.filterwarnings("ignore")
+    warnings.filterwarnings("ignore")
     seg.make_model_folder(f"./Models/{args.version}")
     if args.mode =="fedavg":
         strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
