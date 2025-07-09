@@ -18,6 +18,7 @@ import pandas as pd
 import torch
 from functools import reduce
 import os
+import copy
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -71,6 +72,7 @@ class FedRef(flwr.server.strategy.FedAvg):
         if self.inplace:
             # Does in-place weighted average of results
             aggregated_ndarrays = aggregate_inplace(results)
+            
         else:
             if server_round < self.p+1:
                 # Convert results
@@ -79,8 +81,8 @@ class FedRef(flwr.server.strategy.FedAvg):
                     for _, fit_res in results
                 ]
                 aggregated_ndarrays = aggregate(weights_results)
-                self.aggs.enqueue(aggregated_ndarrays)
-                self.SetTheta0(aggregated_ndarrays, None)
+                self.aggs.enqueue(copy.deepcopy(aggregated_ndarrays))
+                self.SetTheta0(copy.deepcopy(aggregated_ndarrays), None)
                 aggLosses = [res.metrics["loss"] for _,res in results]
                 self.losses[0]=aggLosses
                 parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
@@ -91,7 +93,7 @@ class FedRef(flwr.server.strategy.FedAvg):
                     metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
                 elif server_round == 1:  # Only log this warning once
                     log(WARNING, "No fit_metrics_aggregation_fn provided")
-                
+                return parameters_aggregated, metrics_aggregated
             else:
                 weights_results = [
                     (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
@@ -123,10 +125,10 @@ class FedRef(flwr.server.strategy.FedAvg):
                     parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
                 self.losses[0]=aggLosses
                 self.SetTheta0([layer for layer in aggregated_ndarrays], [reduce(np.add, layer) / self.aggs.max_que_size for layer in zip(*ref_ndarrays)])
-        return parameters_aggregated, metrics_aggregated
+                return parameters_aggregated, metrics_aggregated
         
     def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda=0.2):
-        p1 = [W1 - lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda*np.abs(W3) + Lambda*np.abs(W2)) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
+        p1 = [W1 - lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda*np.linalg.norm(W3.flatten(),2) + Lambda*np.linalg.norm(W2.flatten(), 2)) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
         return p1 
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:

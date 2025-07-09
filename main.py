@@ -229,6 +229,7 @@ def client_fn(context: Context):
 if __name__ =="__main__":
     warnings.filterwarnings("ignore")
     seg.make_model_folder(f"./Models/{args.version}")
+    
     if args.mode =="fedavg":
         strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedref":
