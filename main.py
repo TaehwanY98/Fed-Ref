@@ -229,12 +229,11 @@ def client_fn(context: Context):
 if __name__ =="__main__":
     warnings.filterwarnings("ignore")
     seg.make_model_folder(f"./Models/{args.version}")
+    
     if args.mode =="fedavg":
         strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-        
     elif args.mode =="fedref":
         strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
-        
     elif args.mode =="fedprox":
         strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedopt":
@@ -247,10 +246,6 @@ if __name__ =="__main__":
         strategy = adagrad.FedAdagrad(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
-    
-    
-    
-    
     
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))
