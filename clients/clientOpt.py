@@ -43,7 +43,8 @@ class CustomNumpyClient(flwr.client.NumPyClient):
             return self.lossf(outputs, targets)+(config["tau"] / 2) \
                 * sum([np.linalg.norm(n.flatten().cpu().detach().numpy()-g.flatten(), 2) for n, g in zip(self.net.parameters(), copy.deepcopy(parameters))])
 
-        history = self.train(self.net, self.train_loader, self.train_loader, self.epoch, proxy_lossf, self.optim, self.DEVICE, None)
+        self.train(self.net, self.train_loader, None, self.epoch, proxy_lossf, self.optim, self.DEVICE, None) 
+        history = self.valid(self.net, self.valid_loader, 0, self.lossf, self.DEVICE, True)
         return self.get_parameters(config={}), len(self.train_loader), history
 
 def seeding(args):
