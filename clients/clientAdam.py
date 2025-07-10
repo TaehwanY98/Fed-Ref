@@ -40,7 +40,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
     def fit(self, parameters, config={}):
         self.set_parameters(parameters)
         def proxy_lossf(outputs, targets):
-            return self.lossf(outputs, targets)+(config["tau"] / 2) \
+            return self.lossf(outputs, targets)+(1 / len(self.train_loader)) \
                 * sum([np.linalg.norm(n.flatten().cpu().detach().numpy()-g.flatten(), 2) for n, g in zip(self.net.parameters(), copy.deepcopy(parameters))])
 
         self.train(self.net, self.train_loader, None, self.epoch, proxy_lossf, self.optim, self.DEVICE, None)
