@@ -145,12 +145,12 @@ class FedRef(flwr.server.strategy.FedAvg):
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'FedRef_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
         save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
