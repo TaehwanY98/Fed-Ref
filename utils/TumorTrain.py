@@ -1,5 +1,6 @@
 import os
 import segmentation_models_pytorch as smp
+from torchmetrics.segmentation import MeanIoU
 from Network.pytorch3dunet.unet3d.losses import DiceLoss
 import numpy as np
 import random
@@ -42,6 +43,7 @@ focalLossb = smp.losses.FocalLoss(
    gamma=4.5,                   # Focusing parameter for hard-to-classify examples
    normalized=True
 )
+
 
 def make_model_folder(dir):
     if not os.path.exists(dir):
@@ -155,11 +157,12 @@ class CustomFocalDiceLossb(nn.Module):
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    Dicenary = {'mDice':0, 'mHF95':0}
+    Dicenary = {'mDice':0, 'mHF95':0, "mIOU":0}
     length = len(valid_loader) 
     losses = 0
     dicef= diceLoss.to(DEVICE)
     hf95f = CustomHF95([range(4)]).to(DEVICE)
+    mIou = MeanIoU(4, input_format="one-hot")
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([s["x"] for s in sample], 0)
@@ -168,9 +171,12 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
         out = net(X.type(float32).unsqueeze(0).to(DEVICE)) 
     
         losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        
+        out = out.sigmoid(1)
+        
         Dicenary[f"mDice"] += (1-dicef(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))).item()
         Dicenary[f"mHF95"] += hf95f(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 4).permute(3, 0, 1, 2).type(float32).to(DEVICE))
-
+        Dicenary[f"mIOU"] += mIou(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 4).permute(3, 0, 1, 2).type(float32).to(DEVICE)).item()
     # if Central:
     #     logger.info(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
         
@@ -184,15 +190,17 @@ def validDrive(net, valid_loader, e, lossf, DEVICE, Central=False):
     losses = 0
     dicef= diceLossb.to(DEVICE)
     hf95f = Hausdorff95().to(DEVICE)
+    mIou = MeanIoU(2, input_format="one-hot")
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
         Y= torch.stack([torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze()[...,0], 0.0, 1.0).type(torch.int64) for s in sample], 0)
         out = net(X.type(float32).to(DEVICE))
         losses += lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        out = out.sigmoid(1)
         Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
         Dicenary[f"mHF95"] += hf95f(out.squeeze(), Y.type(torch.float32).to(DEVICE)).item()
-
+        # Dicenary[f"mIOU"] += mIou(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 2).permute(3, 0, 1, 2).type(float32).to(DEVICE)).item()
     # if Central:
     #     print(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
         
