@@ -128,11 +128,17 @@ elif args.type in ["drive"] :
 elif args.type == "mnist":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "cifar10":
-    lossf = nn.CrossEntropyLoss(label_smoothing=0.1, reduction="mean").to(DEVICE)
-
+    lossf = nn.CrossEntropyLoss().to(DEVICE)
+elif args.type == "fets":
+    lossf = CustomFocalDiceLoss().to(DEVICE)
 
 if args.type == "fets":
-    train_set = Fets2022(args.data_dir)
+    if args.data_dir is None:
+        pass
+    else:
+        # train_set = Fets2022(args.data_dir)
+        valid_set = Fets2022(args.data_dir)
+        validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "brats":
     train_set = BRATS(args.data_dir)
 elif args.type == "octdl":
@@ -144,8 +150,8 @@ elif args.type == "mnist":
     valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
     validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "cifar10":
-    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
-    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
+    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
+    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
     validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
