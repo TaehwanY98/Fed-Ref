@@ -27,22 +27,6 @@ focalLoss = smp.losses.FocalLoss(
    gamma=4.5,                   # Focusing parameter for hard-to-classify examples
    normalized=True
 )
-diceLossb = smp.losses.DiceLoss(
-   mode="binary",          # For multi-class segmentation
-   classes=None,               # Compute the loss for all classes
-   log_loss=False,             # Do not use log version of Dice loss
-   from_logits=True,           # Model outputs are raw logits
-   smooth=1e-5,                # A small smoothing factor for stability
-   ignore_index=None,          # Don't ignore any classes
-   eps=1e-7                    # Epsilon for numerical stability
-)
-
-focalLossb = smp.losses.FocalLoss(
-   mode="binary",          # Multi-class segmentation
-   alpha=0.1,                 # class weighting to deal with class imbalance
-   gamma=4.5,                   # Focusing parameter for hard-to-classify examples
-   normalized=True
-)
 
 
 def make_model_folder(dir):
@@ -56,11 +40,13 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
-            Y= torch.stack([torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample], 0)
-            out = net(X.unsqueeze(0).type(float32).to(DEVICE))
+            X= torch.stack([torch.from_numpy(s) for s in sample["rgb_images"]], 0)
+            Y= torch.stack([torch.where(torch.from_numpy(s).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample["masks"]], 0)
+            X = X.permute(0,3,1,2)  # Change to (C, H, W) format
+            Y = Y.permute(0,3,1,2)  # Change to (C, H, W) format
+            out = net(X.type(float32).to(DEVICE))
 
-            loss = lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE))
+            loss = lossf(out.type(float32).to(DEVICE), Y.argmax(dim=1).type(int64).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -120,33 +106,26 @@ class CustomFocalDiceLoss(nn.Module):
     def forward(self, x, y):
         return diceLoss.to(DEVICE)(x, y) + focalLoss.to(DEVICE)(x, y)
 
-class CustomFocalDiceLossb(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-    def forward(self, x, y):
-        return diceLossb.to(DEVICE)(x, y) + focalLossb.to(DEVICE)(x, y)
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
     Dicenary = {'mDice':0, 'mHF95':0, 'mIOU':0}
     length = len(valid_loader) 
     losses = 0
-    dicef= diceLossb.to(DEVICE)
+    dicef= diceLoss.to(DEVICE)
     hf95f = Hausdorff95().to(DEVICE)
-    mIou = MeanIoU(2, input_format="one-hot").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
-    
-        X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
-        Y= torch.stack([torch.where(torch.from_numpy(s['masks'].numpy()).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample], 0)
-        Y = Y.squeeze().permute(0, 3, 1, 2)
-        out = net(X.unsqueeze(0).type(float32).to(DEVICE))
-        losses += lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        X= torch.stack([torch.from_numpy(s) for s in sample["rgb_images"]], 0)
+        Y= torch.stack([torch.where(torch.from_numpy(s).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample["masks"]], 0)
+        X = X.permute(0,3,1,2)  # Change to (C, H, W) format
+        Y = Y.permute(0,3,1,2) 
+        out = net(X.type(float32).to(DEVICE))
+        losses += lossf(out.type(float32).to(DEVICE), Y.argmax(dim=1).type(int64).to(DEVICE)).item()
         out = out.sigmoid()
-        Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
-        Dicenary[f"mHF95"] += hf95f(out.squeeze(), Y.type(torch.float32).to(DEVICE)).item()
-        Dicenary[f"mIOU"] += mIou(out.squeeze().argmax(dim=0).to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        Dicenary[f"mDice"] += (1-dicef(out, Y.argmax(dim=1).type(int64).to(DEVICE))).item()
+        Dicenary[f"mHF95"] += hf95f(out, Y.type(float32).to(DEVICE)).item()
 
-    return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length,'mIOU': Dicenary["mIOU"]/length}
+    return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length}
 
 
 def set_seeds(args):

@@ -79,9 +79,9 @@ class CustomFocalDiceLossb(nn.Module):
     
 if args.mode !="fedref":
     if args.type == "fets":
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+        net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
     if args.type == "brats":
-        net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+        net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
     if args.type == "octdl":
         net = ResNet(outdim=7)
     if args.type == "mnist":
@@ -89,7 +89,7 @@ if args.mode !="fedref":
     if args.type == "cifar10":
         net = ResNet(outdim=10)
     if args.type == "drive":
-        net = Custom3DUnet(args.batch_size, 2, True, layer_order="cr", f_maps=8, num_groups=4, num_levels=4, conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1)
+        net = Custom2DUnet(3, 2, False, layer_order="cr", f_maps=32, num_groups=4, num_levels=4, conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1)
     net.to(DEVICE)
     
 elif args.mode =="fedref":
@@ -147,7 +147,12 @@ elif args.type == "octdl":
 elif args.type == "drive":
     train_set = deeplake.load('hub://activeloop/drive-train', token= args.token)
     valid_set = deeplake.load("hub://activeloop/drive-test", token= args.token)
-    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+    validLoader = DataLoader(valid_set,
+        batch_size=args.batch_size, shuffle=False, collate_fn=lambda x: {
+            "rgb_images": [xi["rgb_images"].numpy() for xi in x],
+            "masks": [xi["masks"].numpy() for xi in x]
+        }
+    )
 elif args.type == "mnist":
     train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
     valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
@@ -192,8 +197,18 @@ def client_fn(context: Context):
     if args.type in ["mnist", 'cifar10']:
         trainset = train_set
     if args.type in ["fets","brats", "octdl"]:
-        train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x: x)
-    if args.type in ["drive", "mnist", "cifar10"]:
+        train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
+    if args.type in ["drive"]:
+        if args.test:
+            i = 0.01
+        else:
+            i = random.randint(5, 9)/10
+        trainS, _ = random_split(trainset, [i, 1-i], torch.Generator("cpu").manual_seed(args.seed))
+        train_loader = DataLoader(trainS, args.batch_size, shuffle=True, collate_fn=lambda x: {
+            "rgb_images":(xi["rgb_images"].numpy() for xi in x),
+            "masks":(xi["manual_masks/mask"].numpy() for xi in x)
+            })
+    if args.type in ["mnist", "cifar10"]:
         if args.test:
             i = 0.01
         else:
