@@ -1,15 +1,8 @@
 Data
 Models
 Csv
-
+Result
 __pycache__
 .venv
-Result/fed*
-Result/img
-Result/central
 command.txt
 logs.log
-BRATS.ipynb
-DRIVE.ipynb
-example.ipynb
-OCTDL.ipynb
