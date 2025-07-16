@@ -46,6 +46,12 @@ the constant value denoted $\sum_{k}^{K} F_k$: sum of clients' loss, The diagona
 |    |FedOpt  | 16.67%| 21.39| 12.54|
 |    |FedRef  | 16.81 | 21.53%| 12.13|
 
+|Data|Strategy| mIoU| Dice | HF95|
+|----|--------|-----|------|-----|
+|    |FedAvg  |30.23%| 45.95%| 14.82|
+|DRIVE|FedProx |30.23%| 45.95%| 14.82|
+|    |FedOpt  |30.23%| 45.95%| 14.82|
+|    |FedRef  | 32.27 | 48.17%| 14.79|
 ### Run
 
 Available FL Strategies

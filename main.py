@@ -137,11 +137,14 @@ if args.type == "fets":
     if args.data_dir is None:
         pass
     else:
-        # train_set = Fets2022(args.data_dir)
         valid_set = Fets2022(args.data_dir)
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "brats":
-    train_set = BRATS(args.data_dir)
+    if args.data_dir is None:
+        pass
+    else:
+        valid_set = BRATS(args.data_dir)
+        validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "octdl":
     train_set = OCTDL(args.data_dir)
 elif args.type == "drive":
