@@ -115,9 +115,9 @@ elif args.mode =="fedref":
         ref_net.to(DEVICE)
         
     elif args.type in ["drive"]:
-        aggregated_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
+        aggregated_net = Custom2DUnet(3, 2, False, layer_order="cr", f_maps=32, num_groups=4, num_levels=4, conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1)
         aggregated_net.to(DEVICE)
-        ref_net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
+        ref_net = Custom2DUnet(3, 2, False, layer_order="cr", f_maps=32, num_groups=4, num_levels=4, conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1)
         ref_net.to(DEVICE)
 
 if args.type == "octdl":
@@ -257,7 +257,7 @@ if __name__ =="__main__":
     if args.mode =="fedavg":
         strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime, evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime,evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedprox":
         strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedopt":

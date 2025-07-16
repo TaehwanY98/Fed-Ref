@@ -39,6 +39,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     history = {}
     for e in range(epoch):
         net.train()
+        net.to(DEVICE)
         for sample in tqdm(train_loader):
             X= torch.stack([torch.from_numpy(s) for s in sample["rgb_images"]], 0)
             Y= torch.stack([torch.where(torch.from_numpy(s).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample["masks"]], 0)
@@ -109,6 +110,7 @@ class CustomFocalDiceLoss(nn.Module):
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
+    net.to(DEVICE)
     Dicenary = {'mDice':0, 'mHF95':0, 'mIOU':0}
     length = len(valid_loader) 
     losses = 0
@@ -122,8 +124,8 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
         out = net(X.type(float32).to(DEVICE))
         losses += lossf(out.type(float32).to(DEVICE), Y.argmax(dim=1).type(int64).to(DEVICE)).item()
         out = out.sigmoid()
-        Dicenary[f"mDice"] += (1-dicef(out, Y.argmax(dim=1).type(int64).to(DEVICE))).item()
-        Dicenary[f"mHF95"] += hf95f(out, Y.type(float32).to(DEVICE)).item()
+        Dicenary[f"mDice"] += (1-dicef(out.to(DEVICE), Y.argmax(dim=1).type(int64).to(DEVICE))).item()
+        Dicenary[f"mHF95"] += hf95f(out.to(DEVICE), Y.type(float32).to(DEVICE)).item()
 
     return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length}
 
