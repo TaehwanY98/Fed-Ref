@@ -9,7 +9,8 @@ import numpy as np
 from flwr.common.logger import log
 from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
 from torch import save
-from utils.TumorTrain import valid , validDrive
+from utils.DriveTrain import valid as validDrive
+from utils.TumorTrain import valid 
 from utils.octTrain import valid as octValid
 from utils.MNISTTrain import valid as MNISTValid
 from utils.CIFAR10Train import valid as CIFAR10valid

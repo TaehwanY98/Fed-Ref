@@ -16,6 +16,7 @@ import utils.TumorTrain as seg
 import utils.octTrain as oct
 import utils.MNISTTrain as mnist
 import utils.CIFAR10Train as cifar10
+import utils.DriveTrain as drive
 from utils.CustomDataset import *
 from Network.Resnet import *
 from Network.Unet import *
@@ -88,7 +89,7 @@ if args.mode !="fedref":
     if args.type == "cifar10":
         net = ResNet(outdim=10)
     if args.type == "drive":
-        net = Custom2DUnet(3, 1, True, f_maps=4, layer_order="cr", num_groups=4)
+        net = Custom3DUnet(args.batch_size, 2, True, layer_order="cr", f_maps=8, num_groups=4, num_levels=4, conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1)
     net.to(DEVICE)
     
 elif args.mode =="fedref":
@@ -124,7 +125,7 @@ if args.type == "octdl":
 elif args.type in ["fets", "brats"] :
     lossf = CustomFocalDiceLoss().to(DEVICE)
 elif args.type in ["drive"] :
-    lossf = CustomFocalDiceLossb().to(DEVICE)
+    lossf = focalLoss.to(DEVICE)
 elif args.type == "mnist":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "cifar10":
@@ -144,7 +145,9 @@ elif args.type == "brats":
 elif args.type == "octdl":
     train_set = OCTDL(args.data_dir)
 elif args.type == "drive":
-    train_set = deeplake.load("hub://activeloop/drive-train")
+    train_set = deeplake.load('hub://activeloop/drive-train', token= args.token)
+    valid_set = deeplake.load("hub://activeloop/drive-test", token= args.token)
+    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "mnist":
     train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
     valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
@@ -205,8 +208,8 @@ def client_fn(context: Context):
         trainF = seg.train
         validF = seg.valid
     elif args.type in ["drive"] :
-        trainF = seg.trainDrive
-        validF = seg.validDrive
+        trainF = drive.train
+        validF = drive.valid
     elif args.type == "mnist":
         trainF = mnist.train
         validF = mnist.valid

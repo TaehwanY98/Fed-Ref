@@ -39,6 +39,12 @@ the constant value denoted $\sum_{k}^{K} F_k$: sum of clients' loss, The diagona
 | Tools            | Visual studio code                              |
 
 ### Results
+|Data|Strategy| mIoU| Dice | HF95|
+|----|--------|-----|------|-----|
+|    |FedAvg  |16.78%| 21.49%| 15.29|
+|FeTs|FedProx | 16.80%| 21.53%| 12.20|
+|    |FedOpt  | 16.67%| 21.39| 12.54|
+|    |FedRef  | 16.81 | 21.53%| 12.13|
 
 ### Run
 

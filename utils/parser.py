@@ -75,5 +75,6 @@ def Simulationparser():
     parser.add_argument("-g", "--gpu", type= bool, default= True)
     parser.add_argument("--test", type= bool, default= False)
     parser.add_argument("-rp", "--result-path", type= str, default="Result")
+    parser.add_argument("--token", type=str, default= "")
     args = parser.parse_args()
     return args

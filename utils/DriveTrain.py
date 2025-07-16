@@ -56,11 +56,11 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([s["x"] for s in sample], 0)
-            Y= torch.stack([s["y"] for s in sample], 0)
-            out = net(X.type(float32).unsqueeze(0).to(DEVICE))
-            
-            loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
+            X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
+            Y= torch.stack([torch.where(torch.from_numpy(s['manual_masks/mask'].numpy()).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample], 0)
+            out = net(X.unsqueeze(0).type(float32).to(DEVICE))
+
+            loss = lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -78,7 +78,6 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
         return history
     else:
         return None
-
 
 class CustomHF95(nn.Module):
     def __init__(self, num_classes, *args, **kwargs):
@@ -129,30 +128,26 @@ class CustomFocalDiceLossb(nn.Module):
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    Dicenary = {'mDice':0, 'mHF95':0, "mIOU":0}
+    Dicenary = {'mDice':0, 'mHF95':0, 'mIOU':0}
     length = len(valid_loader) 
     losses = 0
-    dicef= diceLoss.to(DEVICE)
-    hf95f = CustomHF95([range(4)]).to(DEVICE)
-    mIou = MeanIoU(4, input_format="one-hot").to(DEVICE)
+    dicef= diceLossb.to(DEVICE)
+    hf95f = Hausdorff95().to(DEVICE)
+    mIou = MeanIoU(2, input_format="one-hot").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
-        X= torch.stack([s["x"] for s in sample], 0)
-        Y= torch.stack([s["y"] for s in sample], 0)
-    
-        out = net(X.type(float32).unsqueeze(0).to(DEVICE)) 
-    
-        losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        
+        X= torch.stack([torch.Tensor(s["rgb_images"].numpy()).permute(-1,0,1) for s in sample], 0)
+        Y= torch.stack([torch.where(torch.from_numpy(s['masks'].numpy()).squeeze(), 0.0, 1.0).type(torch.int64) for s in sample], 0)
+        Y = Y.squeeze().permute(0, 3, 1, 2)
+        out = net(X.unsqueeze(0).type(float32).to(DEVICE))
+        losses += lossf(out.type(float32).squeeze().to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
         out = out.sigmoid()
-        
-        Dicenary[f"mDice"] += (1-dicef(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))).item()
-        Dicenary[f"mHF95"] += hf95f(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 4).permute(3, 0, 1, 2).type(float32).to(DEVICE))
+        Dicenary[f"mDice"] += (1-dicef(out.squeeze(), Y.squeeze().type(int64).to(DEVICE))).item()
+        Dicenary[f"mHF95"] += hf95f(out.squeeze(), Y.type(torch.float32).to(DEVICE)).item()
         Dicenary[f"mIOU"] += mIou(out.squeeze().argmax(dim=0).to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
-    # if Central:
-    #     logger.info(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
 
-    return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length, 'mIOU': Dicenary["mIOU"]/length}
+    return {"loss":losses/length, 'mDice': Dicenary["mDice"]/length,'mHF95': Dicenary["mHF95"]/length,'mIOU': Dicenary["mIOU"]/length}
+
 
 def set_seeds(args):
     torch.manual_seed(args.seed)
