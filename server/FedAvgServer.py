@@ -2,11 +2,12 @@ from typing import Dict, List, Optional, Tuple
 import flwr
 import torch
 from torch import save
-from utils.DriveTrain import valid as validDrive
-from utils.TumorTrain import valid 
-from utils.octTrain import valid as octValid
-from utils.MNISTTrain import valid as MNISTValid
-from utils.CIFAR10Train import valid as CIFAR10Valid
+from utils.CelebaTrain import valid as celebaValid
+from utils.FetsTrain import valid as fetsValid
+from utils.Cinic10Train import valid as cinicValid
+from utils.FEMNISTTrain import valid as FEMNISTValid
+from utils.ShakespeareTrain import valid as shakespeareValid
+from utils.OfficeTrain import valid as officeValid
 from torch import nn
 import pandas as pd
 import os
@@ -27,13 +28,18 @@ class FedAvg(flwr.server.strategy.FedAvg):
         return super().aggregate_fit(server_round, results, failures)
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
-        validF= valid if not self.args.type=="octdl" else octValid
-        if self.args.type=="mnist":
-            validF = MNISTValid
-        if self.args.type == "cifar10":
-            validF = CIFAR10Valid
-        if self.args.type in ["drive"]:
-            validF = validDrive
+        if self.args.type =="fets":
+            validF= fetsValid 
+        elif self.args.type=="femnist":
+            validF = FEMNISTValid
+        elif self.args.type == "cinic10":
+            validF = cinicValid
+        elif self.args.type == "shakespeare":
+            validF = shakespeareValid
+        elif self.args.type == "office":
+            validF = officeValid
+        elif self.args.type == "celeba":
+            validF = celebaValid
         set_parameters(self.net, parameters)
         history=validF(self.net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)

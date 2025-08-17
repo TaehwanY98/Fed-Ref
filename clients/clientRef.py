@@ -41,8 +41,8 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         return [val.cpu().detach().numpy() for val in self.net.parameters()]
     def fit(self, parameters, config = {}):
         self.set_parameters(parameters)
-        self.train(self.net, self.train_loader, None, self.epoch, self.lossf, self.optim, self.DEVICE, None)
-        history = self.valid(self.net, self.valid_loader, 0, self.lossf, self.DEVICE, True)
+        history = self.train(self.net, self.train_loader, None, self.epoch, self.lossf, self.optim, self.DEVICE, None)
+        # history = self.valid(self.net, self.valid_loader, 0, self.lossf, self.DEVICE, True)
         return self.get_parameters(config={}), len(self.train_loader), history
 
 def seeding(args):

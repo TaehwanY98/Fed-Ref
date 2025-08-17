@@ -6,6 +6,7 @@ from tqdm import tqdm
 import pandas as pd
 from torch import nn, int32, int64, float32, save
 import torch
+from torch.nn.functional import one_hot
 from torchmetrics.classification import Accuracy, F1Score
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,12 +25,8 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
         for sample in tqdm(train_loader):
             X= torch.stack([s[0] for s in sample], 0)
             Y= torch.Tensor([s[1] for s in sample])
-            if len(sample) != 1:
-                out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze())
-                loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
-            else:
-                out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze().unsqueeze(0))
-                loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
+            out = net(X.type(float32).to(DEVICE))
+            loss = lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), num_classes=10).type(float32).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -46,7 +43,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     if valid_loader is not None:                    
         return history
     else:
-        return None
+        return {"loss": loss.item()}
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
@@ -59,20 +56,19 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     
         X= torch.stack([s[0] for s in sample], 0)
         Y= torch.Tensor([s[1] for s in sample])
-        if len(sample) != 1:
-            out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze()) 
-            losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        else:
-            out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze().unsqueeze(0)) 
-            losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        # Dicenary[f"accuracy"] = accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        # Dicenary[f"f1score"] = f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+    
+        out = net(X.type(float32).to(DEVICE)) 
+
+        losses += lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), num_classes=10).type(float32).to(DEVICE)).item()
+        
+        # Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        # Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
 
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
-        
-    # return {"loss":losses/length, 'accuracy': Dicenary["accuracy"] , "f1score":Dicenary["f1score"]}
     return {"loss": losses/length}
+    # return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
+
 
 def set_seeds(seed:int):
     torch.manual_seed(seed)

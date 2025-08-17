@@ -9,11 +9,12 @@ import numpy as np
 from flwr.common.logger import log
 from flwr.server.strategy.fedavg import aggregate, aggregate_inplace
 from torch import save
-from utils.DriveTrain import valid as validDrive
-from utils.TumorTrain import valid 
-from utils.octTrain import valid as octValid
-from utils.MNISTTrain import valid as MNISTValid
-from utils.CIFAR10Train import valid as CIFAR10valid
+from utils.CelebaTrain import valid as celebaValid
+from utils.FetsTrain import valid as fetsValid
+from utils.Cinic10Train import valid as cinicValid
+from utils.FEMNISTTrain import valid as FEMNISTValid
+from utils.ShakespeareTrain import valid as shakespeareValid
+from utils.OfficeTrain import valid as officeValid
 from logging import WARNING
 import pandas as pd
 import torch
@@ -134,13 +135,18 @@ class FedRef(flwr.server.strategy.FedAvg):
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
-        validF= valid if not self.args.type=="octdl" else octValid
-        if self.args.type == "mnist":
-            validF = MNISTValid
-        if self.args.type in ["drive"]:
-            validF = validDrive
-        if self.args.type == "cifar10":
-            validF = CIFAR10valid
+        if self.args.type =="fets":
+            validF= fetsValid 
+        elif self.args.type=="femnist":
+            validF = FEMNISTValid
+        elif self.args.type == "cinic10":
+            validF = cinicValid
+        elif self.args.type == "shakespeare":
+            validF = shakespeareValid
+        elif self.args.type == "office":
+            validF = officeValid
+        elif self.args.type == "celeba":
+            validF = celebaValid
         set_parameters(self.aggregated_net, parameters)
         history=validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
         make_dir(self.args.result_path)

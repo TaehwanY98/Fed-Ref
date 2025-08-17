@@ -46,46 +46,6 @@ class Fets2022(object):
     def __len__(self) :
         return len(self.patients)
 
-class Fets2022Noise(object):
-    def __init__(self, data_dir, noise=77) -> None:
-        self.dir = data_dir
-        self.patients = [patient for patient in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, patient))]
-        self.file_names = [[x for x in os.listdir(os.path.join(data_dir,patient)) if os.path.isfile(os.path.join(data_dir, patient, x))] for patient in self.patients]
-        self.width = 240
-        self.height = 240
-        self.depth = 155
-        self.noise = noise
-    
-    def __getitem__(self, i):
-        directory = self.dir
-        patient = self.patients[i]
-        files = self.file_names[i]
-        for file in files:
-            if "flair" in file:
-                xpath = os.path.join(directory, patient, file)
-            if "seg" in file:
-                ypath = os.path.join(directory, patient, file)
-                
-        x = self.OpenFile(xpath, True)        
-        y = self.OpenFile(ypath, 0)
-        y[y==4] = 3
-        
-        ret={
-            "x" : torch.Tensor(x),
-            'y' : torch.Tensor(y)
-        }
-        return ret
-    
-    def OpenFile(self, path, noise:bool):
-        img = sitk.ReadImage(path, sitk.sitkFloat32)
-        img = sitk.GetArrayFromImage(img)
-        if noise:
-            img = random_noise(img)
-        return img
-            
-    def __len__(self) :
-        return len(self.patients)
-    
 
 class BRATS(object):
     def __init__(self, data_dir, norm=True) -> None:
@@ -128,48 +88,6 @@ class BRATS(object):
     def __len__(self) :
         return len(self.patients)
 
-
-class BRATSNoise(object):
-    def __init__(self, data_dir, norm=True) -> None:
-        self.dir = data_dir
-        self.patients = [patient for patient in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, patient))]
-        self.file_names = [sorted([x for x in os.listdir(os.path.join(data_dir,patient)) if os.path.isfile(os.path.join(data_dir, patient, x))], key= lambda s: int(s.split("_")[-1].replace(".h5", ""))) for patient in self.patients]
-        self.width = 240
-        self.height = 240
-        self.depth = 155
-        self.normalization = norm
-    
-    def __getitem__(self, i):
-        directory = self.dir
-        patient = self.patients[i]
-        files = self.file_names[i]
-        X = np.zeros((self.depth, self.width, self.height, 4), dtype=np.float32)
-        Y = np.zeros((self.depth, self.width, self.height, 4), dtype=np.int32)
-        for indx, file in enumerate(files):
-            path = os.path.join(directory, patient, file)    
-            x, y = self.OpenFile(path)        
-            X[indx] = x
-            Y[indx,..., 1:] = y
-        Y = torch.Tensor(Y).permute(0,3,2,1)
-        background, _ = Y.max(dim=1)
-        background = background==0
-        Y[:,0,...] = background.type(torch.int32)
-        ret={
-            "x" : torch.Tensor(X).permute(0,3,2,1)[:,0,...],
-            'y' : Y.argmax(dim=1)
-        }
-        return ret
-    
-    def OpenFile(self, path):
-
-        with h5py.File(path) as f:
-           x = np.array(f["image"])
-           x = random_noise(x)
-           y = np.array(f["mask"])
-           return x, y
-            
-    def __len__(self) :
-        return len(self.patients)
 
 class OCTDL(object):
     def __init__(self, data_dir, norm=True) -> None:

@@ -60,7 +60,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     if valid_loader is not None:                    
         return history
     else:
-        return None
+        return {"loss": loss.item()}
 
 
 class CustomHF95(nn.Module):
