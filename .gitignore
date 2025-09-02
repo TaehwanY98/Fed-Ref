@@ -6,3 +6,4 @@ __pycache__
 .venv
 command.txt
 logs.log
+token.txt

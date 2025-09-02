@@ -7,7 +7,8 @@ import pandas as pd
 from torch import nn, int32, int64, float32, save
 import torch
 from torchmetrics.classification import Accuracy, F1Score
-
+from PIL import Image
+import io
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -19,12 +20,11 @@ def make_model_folder(dir):
 
 def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save_path):
     history = {}
-    losses = 0
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([s[0] for s in sample], 0)
-            Y= torch.Tensor([s[1] for s in sample])
+            X= torch.stack([torch.Tensor(np.array(s.resize((64, 64), Image.LANCZOS))) for s in sample["image"]], 0)
+            Y= torch.Tensor(sample["character"])
             if len(sample) != 1:
                 out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze())
                 loss = lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))
@@ -51,29 +51,29 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    # Dicenary = {'accuracy':0, 'f1score':0}
-    length = len(valid_loader) 
+    Dicenary = {'accuracy':0, 'f1score':0}
+    length = 0
     losses = 0
-    # accf = Accuracy("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
-    # f1scoref = F1Score("multiclass", num_classes=10, multidim_average="global").to(DEVICE)
+    accf = Accuracy("multiclass", num_classes=62, multidim_average="global").to(DEVICE)
+    f1scoref = F1Score("multiclass", num_classes=62, multidim_average="global").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
-        X= torch.stack([s[0] for s in sample], 0)
-        Y= torch.Tensor([s[1] for s in sample])
+        X= torch.stack([torch.Tensor(np.array(s.resize((64, 64), Image.LANCZOS))) for s in sample["image"]], 0)
+        Y= torch.Tensor(sample["character"])
         if len(sample) != 1:
             out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze()) 
             losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
         else:
             out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze().unsqueeze(0)) 
             losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        # Dicenary[f"accuracy"] = accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-        # Dicenary[f"f1score"] = f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
-
+        Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        length += 1
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
         
-    # return {"loss":losses/length, 'accuracy': Dicenary["accuracy"] , "f1score":Dicenary["f1score"]}
-    return {"loss": losses/length}
+    return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
+    # return {"loss": losses/length}
 
 def set_seeds(seed:int):
     torch.manual_seed(seed)

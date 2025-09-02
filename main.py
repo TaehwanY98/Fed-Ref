@@ -5,7 +5,7 @@ import server.FedProxServer as prox
 import server.FedOptServer as opt
 import flwr as fl
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Dataset
 from torchvision import datasets
 from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 from utils import parser
@@ -20,15 +20,13 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import NaturalIdPartitioner
 from clients import client, clientProxy, clientOpt, clientRef
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
-import deeplake
 import warnings
-
+import datasets
+import random
 args = parser.Simulationparser()
 fets.set_seeds(args)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,12 +69,6 @@ class CustomFocalDiceLoss(nn.Module):
     def forward(self, x, y):
         return diceLoss.to(DEVICE)(x, y) + focalLoss.to(DEVICE)(x, y)
     
-class CustomFocalDiceLossb(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-    def forward(self, x, y):
-        return diceLossb.to(DEVICE)(x, y) + focalLossb.to(DEVICE)(x, y)
-    
 if args.mode !="fedref":
     if args.type == "fets":
         net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
@@ -85,7 +77,7 @@ if args.mode !="fedref":
     if args.type == "office":
         net = ResNet(outdim=100)
     if args.type == "femnist":
-        net = MobileNet(outdim=10)
+        net = MobileNet(outdim=62)
     if args.type == "cinic10":
         net = ResNet(outdim=10)
     if args.type == "celeba":
@@ -114,9 +106,9 @@ elif args.mode =="fedref":
         ref_net = ResNet(outdim=10)
         ref_net.to(DEVICE)
     elif args.type == "femnist":
-        aggregated_net = MobileNet(outdim=10)
+        aggregated_net = MobileNet(outdim=62)
         aggregated_net.to(DEVICE)
-        ref_net = MobileNet(outdim=10)
+        ref_net = MobileNet(outdim=62)
         ref_net.to(DEVICE)
     elif args.type == "celeba":
         aggregated_net = ResNet(outdim=10)
@@ -127,13 +119,13 @@ elif args.mode =="fedref":
 if args.type == "fets":
     lossf = CustomFocalDiceLoss().to(DEVICE)
 elif args.type == "office":
-    lossf = focalLoss.to(DEVICE)
+    lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "femnist":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "cinic10":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "celeba":
-    lossf = CustomFocalDiceLoss().to(DEVICE)
+    lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "shakespeare":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 
@@ -144,20 +136,14 @@ if args.type == "fets":
         valid_set = Fets2022(args.data_dir)
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "shakespeare":
-    train_set = OCTDL(args.data_dir)
+    pass
 elif args.type == "celeba":
-    train_set = deeplake.load('hub://activeloop/drive-train', token= args.token)
-    valid_set = deeplake.load("hub://activeloop/drive-test", token= args.token)
-    validLoader = DataLoader(valid_set,
-        batch_size=args.batch_size, shuffle=False, collate_fn=lambda x: {
-            "rgb_images": [xi["rgb_images"].numpy() for xi in x],
-            "masks": [xi["masks"].numpy() for xi in x]
-        }
-    )
+    pass
 elif args.type == "femnist":
-    train_set = datasets.MNIST("./Data", True, Compose([ToTensor(), Resize((64,64))]), None, True)
-    valid_set = datasets.MNIST("./Data", False, Compose([ToTensor(), Resize((64,64))]), None, True)
-    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+    Femnist = datasets.load_dataset("flwrlabs/femnist")
+    data_set = Femnist["train"]
+    validLoader = data_set.to_iterable_dataset().batch(args.batch_size)
+    info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
     valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
@@ -168,7 +154,14 @@ elif args.type == "office":
     validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 
 if args.type == "fets":
-    client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 11)]
+    client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 17)]
+elif args.type == "shakespeare":
+    pass
+elif args.type == "celeba":
+    pass
+elif args.type == "femnist":
+    dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["hsf_id"]==id) for id in range(0, 8) if id!=5]
+
 
 def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
@@ -176,20 +169,23 @@ def set_parameters(net, new_parameters):
         old.data = torch.Tensor(new).view(shape).to(DEVICE)
 
 def client_fn(context: Context):
-    id = int(context.node_id)%10
     if args.type == "fets":
+        id = random.randint(0, 16)
         trainset = Fets2022(client_dirs[id])
         train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
-    else:
-        trainset = train_set
-    
-    if args.type == "celeba":
-        trainF = celeba.train
-        validF = celeba.valid
-    elif args.type == "fets" :
+        length = len(train_loader)
         trainF = fets.train
         validF = fets.valid
+    elif args.type == "shakespeare":
+        trainF = shakespeare.train
+        validF = shakespeare.valid
+    elif args.type == "celeba":
+        trainF = celeba.train
+        validF = celeba.valid
     elif args.type == "femnist":
+        id = random.randint(0, 6)
+        length = int(info["num_samples"].iloc[id] // args.batch_size)
+        train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = femnist.train
         validF = femnist.valid
     elif args.type == "cinic10":
@@ -198,18 +194,14 @@ def client_fn(context: Context):
     elif args.type == "office":
         trainF = office.train
         validF = office.valid
-    elif args.type == "shakespeare":
-        trainF = shakespeare.train
-        validF = shakespeare.valid
-
     if args.mode == "fedref":
-        return clientRef.CustomNumpyClient(aggregated_net, train_loader, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return clientRef.CustomNumpyClient(aggregated_net, train_loader, length, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedavg":
-        return client.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return client.CustomNumpyClient(net, train_loader, length, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedprox":
-        return clientProxy.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return clientProxy.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedopt":
-        return clientOpt.CustomNumpyClient(net, train_loader, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        return clientOpt.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
     

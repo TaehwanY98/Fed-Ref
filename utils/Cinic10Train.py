@@ -1,14 +1,10 @@
 ﻿from CustomDataset import *
-from parser import Centralparser
 import numpy as np
-import warnings
 import random
 import os
 from tqdm import tqdm
 import pandas as pd
 from torch import nn, int32, int64, float32, save
-from torch.utils.data import DataLoader, random_split
-from torch.optim import SGD
 import torch
 from torch.nn.functional import one_hot
 from torchmetrics.classification import Accuracy, F1Score

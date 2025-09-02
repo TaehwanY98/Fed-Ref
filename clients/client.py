@@ -21,7 +21,7 @@ from flwr.common import (
 
 class CustomNumpyClient(flwr.client.NumPyClient):
     context: Context
-    def __init__(self, net, train_loader, epoch, lossf, optimizer, DEVICE, args, trainF=lambda x: x, validF=lambda x: x):
+    def __init__(self, net, train_loader, length, epoch, lossf, optimizer, DEVICE, args, trainF=lambda x: x, validF=lambda x: x):
         super().__init__()
         self.net = net
         self.train_loader = train_loader
@@ -32,6 +32,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         self.train = trainF
         self.valid = validF
         self.args = args
+        self.length = length
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
             old.data = torch.Tensor(new).to(self.DEVICE)
@@ -40,7 +41,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
     def fit(self, parameters, config={}):
         self.set_parameters(parameters)
         self.train(self.net, self.train_loader, None, self.epoch, self.lossf, self.optim, self.DEVICE, None)
-        return self.get_parameters(config={}), len(self.train_loader), {}
+        return self.get_parameters(config={}), self.length, {}
         # return self.get_parameters(config={}), len(self.train_loader), {}
 
 def seeding(args):
