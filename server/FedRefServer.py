@@ -130,7 +130,7 @@ class FedRef(flwr.server.strategy.FedAvg):
                 return parameters_aggregated, metrics_aggregated
         
     def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda=0.2):
-        p1 = [W1 - lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda*np.linalg.norm(W3.flatten(),2) + Lambda*np.linalg.norm(W2.flatten(), 2)) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
+        p1 = [W1 - lr*np.nan_to_num((reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda*np.linalg.norm(W3.flatten(),2) + Lambda*np.linalg.norm(W2.flatten(), 2))) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
         return p1 
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
@@ -158,7 +158,7 @@ class FedRef(flwr.server.strategy.FedAvg):
             newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
         else:
             pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
-        save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}.pt")
+        save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}_{server_round}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
 def make_dir(path):

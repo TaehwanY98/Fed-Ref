@@ -20,6 +20,7 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
+from Network.Tinycnn import *
 from clients import client, clientProxy, clientOpt, clientRef
 import os
 from torch.optim import SGD
@@ -79,7 +80,7 @@ if args.mode !="fedref":
     if args.type == "femnist":
         net = MobileNet(outdim=62)
     if args.type == "cinic10":
-        net = ResNet(outdim=10)
+        net = tinyNet(outdim=10)
     if args.type == "celeba":
         net = ResNet(outdim=10)
     net.to(DEVICE)
@@ -101,9 +102,9 @@ elif args.mode =="fedref":
         ref_net = ResNet(outdim=10)
         ref_net.to(DEVICE)
     elif args.type == "cinic10":
-        aggregated_net = ResNet(outdim=10)
+        aggregated_net = tinyNet(outdim=10)
         aggregated_net.to(DEVICE)
-        ref_net = ResNet(outdim=10)
+        ref_net = tinyNet(outdim=10)
         ref_net.to(DEVICE)
     elif args.type == "femnist":
         aggregated_net = MobileNet(outdim=62)
@@ -123,7 +124,7 @@ elif args.type == "office":
 elif args.type == "femnist":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "cinic10":
-    lossf = nn.CrossEntropyLoss().to(DEVICE)
+    lossf = nn.MSELoss().to(DEVICE)
 elif args.type == "celeba":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "shakespeare":
@@ -145,13 +146,12 @@ elif args.type == "femnist":
     validLoader = data_set.to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
-    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
-    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
-    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+    CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
+    data_set = CINIC10["train"]
+    validLoader = CINIC10["test"].to_iterable_dataset().batch(args.batch_size)
+    info = {"num_samples": [9000]*10}
 elif args.type == "office":
-    train_set = datasets.CIFAR10("./Data", True, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
-    valid_set = datasets.CIFAR10("./Data", False, Compose([ToTensor(), Resize((64,64)), Normalize((0.4914, 0.4822, 0.4465), (0.2471, 0.2435, 0.2616))]), None, True)
-    validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
+    pass
 
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 17)]
@@ -161,7 +161,8 @@ elif args.type == "celeba":
     pass
 elif args.type == "femnist":
     dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["hsf_id"]==id) for id in range(0, 8) if id!=5]
-
+elif args.type == "cinic10":
+    dataset_partions = [data_set.to_iterable_dataset() for _ in range(10)]
 
 def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
@@ -189,6 +190,9 @@ def client_fn(context: Context):
         trainF = femnist.train
         validF = femnist.valid
     elif args.type == "cinic10":
+        id = random.randrange(0, int(args.client_num)*int(args.round))%10
+        length = int(info["num_samples"][id] // args.batch_size)
+        train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).take(9000).batch(args.batch_size)
         trainF = cinic.train
         validF = cinic.valid
     elif args.type == "office":

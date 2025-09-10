@@ -54,8 +54,8 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     Dicenary = {'accuracy':0, 'f1score':0}
     length = 0
     losses = 0
-    accf = Accuracy("multiclass", num_classes=62, multidim_average="global").to(DEVICE)
-    f1scoref = F1Score("multiclass", num_classes=62, multidim_average="global").to(DEVICE)
+    accf = Accuracy("multiclass", num_classes=62, average="macro").to(DEVICE)
+    f1scoref = F1Score("multiclass", num_classes=62, average="macro").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([torch.Tensor(np.array(s.resize((64, 64), Image.LANCZOS))) for s in sample["image"]], 0)
@@ -66,6 +66,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
         else:
             out = net(torch.stack([X.type(float32).to(DEVICE),X.type(float32).to(DEVICE),X.type(float32).to(DEVICE)], 1).squeeze().unsqueeze(0)) 
             losses += lossf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
+        out = out.softmax(1)
         Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
         Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE)).item()
         length += 1

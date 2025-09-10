@@ -8,7 +8,7 @@ from torch import nn, int32, int64, float32, save
 import torch
 from torch.nn.functional import one_hot
 from torchmetrics.classification import Accuracy, F1Score
-
+from PIL import Image
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def make_model_folder(dir):
     if not os.path.exists(dir):
@@ -21,10 +21,16 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([s["x"] for s in sample], 0)
-            Y= torch.stack([s["y"] for s in sample], 0)
-            out = net(X.type(float32).to(DEVICE))
-            loss = lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).type(float32).squeeze().to(DEVICE))
+            X= torch.stack([torch.Tensor(np.array(s.convert("RGB"))) for s in sample["image"]], 0)
+            Y= torch.Tensor(sample["label"])
+            if len(sample) != 1:
+                out = net(X.permute(0,3,1,2).squeeze().to(DEVICE))
+                Y = Y.unsqueeze(1).type(float32)
+                loss = lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE))
+            else:
+                out = net(X.permute(0,3,1,2).squeeze().unsqueeze(0).to(DEVICE))
+                Y = Y.unsqueeze(1).type(float32)
+                loss = lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE))
             loss.backward()
             optimizer.step()          
             optimizer.zero_grad()
@@ -46,22 +52,28 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
     Dicenary = {'accuracy':0, 'f1score':0}
-    length = len(valid_loader) 
+    length = 0
     losses = 0
-    accf = Accuracy("multiclass", num_classes=7, average="macro").to(DEVICE)
-    f1scoref = F1Score("multiclass", num_classes=7, average="macro").to(DEVICE)
+    accf = Accuracy("multiclass", num_classes=10, average="macro").to(DEVICE)
+    f1scoref = F1Score("multiclass", num_classes=10, average="macro").to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
-        X= torch.stack([s["x"] for s in sample], 0)
-        Y= torch.stack([s["y"] for s in sample], 0)
-    
-        out = net(X.type(float32).to(DEVICE)) 
-
-        losses += lossf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).type(float32).squeeze().to(DEVICE)).item()
-        
-        Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).squeeze().to(DEVICE)).item()
-        Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), one_hot(Y.type(int64), 7).squeeze().to(DEVICE)).item()
-
+        X= torch.stack([torch.Tensor(np.array(s.convert("RGB"))) for s in sample["image"]], 0)
+        Y= torch.Tensor(sample["label"])
+        if len(sample) != 1:
+            out = net(X.permute(0,3,1,2).squeeze().to(DEVICE)) 
+            out = out.squeeze()
+            Y = Y.unsqueeze(1).type(float32)
+            losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+        else:
+            out = net(X.permute(0,3,1,2).squeeze().unsqueeze(0).to(DEVICE))
+            out = out.squeeze()
+            Y = Y.unsqueeze(1).type(float32)
+            losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+        out = out.softmax(1)
+        Dicenary[f"accuracy"] += accf(out.type(float32).to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        Dicenary[f"f1score"] += f1scoref(out.type(float32).to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
+        length += 1
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
         
