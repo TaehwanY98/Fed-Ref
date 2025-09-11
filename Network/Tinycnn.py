@@ -4,7 +4,7 @@ import torch
 class tinyNet(nn.Module):
     def __init__(self, outdim=10):
         super(tinyNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)# 3개의 입력 채널, 32개의 출력 채널, 3x3 커널 크기, 패딩=1
+        self.conv1 = nn.Conv2d(1, 32, 3, padding=1)# 3개의 입력 채널, 32개의 출력 채널, 3x3 커널 크기, 패딩=1
         self.batch_norm1 = nn.BatchNorm2d(32)
         self.relu1 = nn.ReLU()  # ReLU 활성화 함수
         self.conv2 = nn.Conv2d(32, 64, 3, padding=1)  # 32개의 입력 채널, 64개의 출력 채널, 3x3 커널 크기, 패딩=1

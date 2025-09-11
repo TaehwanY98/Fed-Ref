@@ -78,11 +78,11 @@ if args.mode !="fedref":
     if args.type == "office":
         net = ResNet(outdim=100)
     if args.type == "femnist":
-        net = MobileNet(outdim=62)
+        net = tinyNet(outdim=62)
     if args.type == "cinic10":
         net = tinyNet(outdim=10)
     if args.type == "celeba":
-        net = ResNet(outdim=10)
+        net = ResNet(outdim=2)
     net.to(DEVICE)
     
 elif args.mode =="fedref":
@@ -107,14 +107,14 @@ elif args.mode =="fedref":
         ref_net = tinyNet(outdim=10)
         ref_net.to(DEVICE)
     elif args.type == "femnist":
-        aggregated_net = MobileNet(outdim=62)
+        aggregated_net = tinyNet(outdim=62)
         aggregated_net.to(DEVICE)
-        ref_net = MobileNet(outdim=62)
+        ref_net = tinyNet(outdim=62)
         ref_net.to(DEVICE)
     elif args.type == "celeba":
-        aggregated_net = ResNet(outdim=10)
+        aggregated_net = ResNet(outdim=2)
         aggregated_net.to(DEVICE)
-        ref_net = ResNet(outdim=10)
+        ref_net = ResNet(outdim=2)
         ref_net.to(DEVICE)
 
 if args.type == "fets":
@@ -122,11 +122,11 @@ if args.type == "fets":
 elif args.type == "office":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 elif args.type == "femnist":
-    lossf = nn.CrossEntropyLoss().to(DEVICE)
+    lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "cinic10":
-    lossf = nn.MSELoss().to(DEVICE)
+    lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "celeba":
-    lossf = nn.CrossEntropyLoss().to(DEVICE)
+    lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "shakespeare":
     lossf = nn.CrossEntropyLoss().to(DEVICE)
 
@@ -139,16 +139,20 @@ if args.type == "fets":
 elif args.type == "shakespeare":
     pass
 elif args.type == "celeba":
-    pass
+    Celeba = datasets.load_dataset("flwrlabs/celeba")
+    data_set = Celeba["train"]
+    validLoader = Celeba["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
+    info = {"num_samples": data_set.to_pandas()["celeb_id"].value_counts().sort_index()}
+    info["custom_part"] = [info["num_samples"][info["num_samples"].index%16==v].sum() for v in range(0, 16)]
 elif args.type == "femnist":
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
-    validLoader = data_set.to_iterable_dataset().batch(args.batch_size)
+    validLoader = data_set.shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
     data_set = CINIC10["train"]
-    validLoader = CINIC10["test"].to_iterable_dataset().batch(args.batch_size)
+    validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": [9000]*10}
 elif args.type == "office":
     pass
@@ -158,7 +162,7 @@ if args.type == "fets":
 elif args.type == "shakespeare":
     pass
 elif args.type == "celeba":
-    pass
+    dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["celeb_id"]%16==id) for id in range(0, 16)]
 elif args.type == "femnist":
     dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["hsf_id"]==id) for id in range(0, 8) if id!=5]
 elif args.type == "cinic10":
@@ -181,6 +185,9 @@ def client_fn(context: Context):
         trainF = shakespeare.train
         validF = shakespeare.valid
     elif args.type == "celeba":
+        id = random.randint(0, 15)
+        length = int(info["custom_part"][id] // args.batch_size)
+        train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = celeba.train
         validF = celeba.valid
     elif args.type == "femnist":
