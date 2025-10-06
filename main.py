@@ -7,7 +7,8 @@ import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split, Dataset
 from torchvision import datasets
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize
+# from torchvision.transforms import Compose, ToTensor, Normalize, Resize
+from torchmetrics.classification import HammingDistance
 from utils import parser
 import utils.FetsTrain as fets
 import utils.Cinic10Train as cinic
@@ -87,9 +88,9 @@ if args.mode !="fedref":
     
 elif args.mode =="fedref":
     if args.type == "fets":
-        aggregated_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+        aggregated_net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
         aggregated_net.to(DEVICE)
-        ref_net = Custom3DUnet(1, 4, True, f_maps=4, layer_order="gcr", num_groups=4)
+        ref_net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
         ref_net.to(DEVICE)
     elif args.type == "shakespeare":
         aggregated_net = ResNet(outdim=7)
@@ -164,7 +165,7 @@ elif args.type == "shakespeare":
 elif args.type == "celeba":
     dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["celeb_id"]%16==id) for id in range(0, 16)]
 elif args.type == "femnist":
-    dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["hsf_id"]==id) for id in range(0, 8) if id!=5]
+    dataset_partions = [data_set.take(id).to_iterable_dataset() for id in info["num_samples"].values]
 elif args.type == "cinic10":
     dataset_partions = [data_set.to_iterable_dataset() for _ in range(10)]
 
@@ -175,7 +176,7 @@ def set_parameters(net, new_parameters):
 
 def client_fn(context: Context):
     if args.type == "fets":
-        id = random.randint(0, 16)
+        id = random.randint(0, 15)
         trainset = Fets2022(client_dirs[id])
         train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
         length = len(train_loader)

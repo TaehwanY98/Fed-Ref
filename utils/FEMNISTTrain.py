@@ -7,7 +7,8 @@ import pandas as pd
 from torch import nn, int32, int64, float32, save
 import torch
 # from torchmetrics.classification import Accuracy, F1Score
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score
+
 from torch.nn.functional import one_hot
 from PIL import Image
 import io
@@ -55,7 +56,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    Dicenary = {'accuracy':0, 'f1score':0}
+    Dicenary = {'accuracy':0, 'f1score':0, 'precision':0}
     length = 0
     losses = 0
 
@@ -67,20 +68,25 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
             out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE)) 
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 62).type(float32)
-            losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+            losses += lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
         else:
             out = net(X.unsqueeze(-1).permute(0,3,1,2).unsqueeze(0).to(DEVICE))
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 62).type(float32)
             losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+          
         out = out.softmax(1).argmax(1)
         Dicenary[f"accuracy"] += accuracy_score(out.cpu().detach().numpy(), Y.squeeze().argmax(1).type(int64).cpu().detach().numpy())
         Dicenary[f"f1score"] += f1_score(out.cpu().detach().numpy(), Y.squeeze().argmax(1).type(int64).cpu().detach().numpy(), average="weighted")
+        Dicenary[f"precision"] += precision_score(out.cpu().detach().numpy(), Y.squeeze().argmax(1).type(int64).cpu().detach().numpy(), average="weighted")
+        # Dicenary[f"jaccard"] += jaccard_score(one_hot(out, 62).cpu().detach().numpy(), Y.squeeze().type(float32).cpu().detach().numpy(), average="weighted")
+        # Dicenary[f"hamming"] += hamming_loss(one_hot(out, 62).cpu().detach().numpy(), Y.squeeze().type(float32).cpu().detach().numpy())  
+    
         length += 1
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
         
-    return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length}
+    return {"loss":losses/length, 'accuracy': Dicenary["accuracy"]/length , "f1score":Dicenary["f1score"]/length, "precision":Dicenary["precision"]/length}
     # return {"loss": losses/length}
 
 def set_seeds(seed:int):

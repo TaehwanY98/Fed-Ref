@@ -71,8 +71,8 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
             Y = one_hot(Y.type(int64), 10).type(float32)
             losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
         out = out.softmax(1).argmax(1)
-        Dicenary[f"accuracy"] += accuracy_score(out.cpu().detach().numpy(), Y.squeeze().argmax(1).type(int64).cpu().detach().numpy())
-        Dicenary[f"f1score"] += f1_score(out.cpu().detach().numpy(), Y.squeeze().argmax(1).type(int64).cpu().detach().numpy(), average="weighted")
+        Dicenary[f"accuracy"] += accuracy_score(out.cpu().detach().numpy(), Y.argmax(1).squeeze().type(int64).cpu().detach().numpy())
+        Dicenary[f"f1score"] += f1_score(out.cpu().detach().numpy(), Y.argmax(1).squeeze().type(int64).cpu().detach().numpy(), average="weighted")
         length += 1
     # if Central:
         # logger.info(f"Result epoch {e+1}: loss:{losses/length} accuracy: {Dicenary["accuracy"]/length: .4f} f1score: {Dicenary["f1score"]/length: .4f}")
