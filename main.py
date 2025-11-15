@@ -148,7 +148,7 @@ elif args.type == "celeba":
 elif args.type == "femnist":
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
-    validLoader = data_set.shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
+    validLoader = data_set.to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
@@ -165,9 +165,9 @@ elif args.type == "shakespeare":
 elif args.type == "celeba":
     dataset_partions = [data_set.to_iterable_dataset().filter(lambda x:x["celeb_id"]%16==id) for id in range(0, 16)]
 elif args.type == "femnist":
-    dataset_partions = [data_set.take(id).to_iterable_dataset() for id in info["num_samples"].values]
+    dataset_partions = [data_set.skip(sum(info["num_samples"].values[:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"].values)]
 elif args.type == "cinic10":
-    dataset_partions = [data_set.to_iterable_dataset() for _ in range(10)]
+    dataset_partions = [data_set.skip(sum(info["num_samples"].values[:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"].values)]
 
 def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
