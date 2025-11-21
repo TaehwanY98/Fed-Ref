@@ -158,7 +158,7 @@ class FedRef(flwr.server.strategy.FedAvg):
             newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
         else:
             pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
-        save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}_{server_round}.pt")
+        # save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}_{server_round}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
 def make_dir(path):

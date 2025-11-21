@@ -1,6 +1,7 @@
 ﻿from torch import nn
 import torch
 import torch.nn.functional as F
+from torch import int64
 class FocalTverskyLoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
         super(FocalTverskyLoss, self).__init__()
@@ -44,28 +45,23 @@ class FocalLoss(nn.Module):
             return F_loss
         
 class AsymmetricLoss(nn.Module):
-    def __init__(
-        self,
-            weight = None,
-            gamma_pos: float = 0.0,
-            gamma_neg: float = 1.0,
-            margin: float = 0.2,
-            eps: float = 1e-6,
-        ):
-            super().__init__()
-            self.weight = weight
-            self.gamma_pos = gamma_pos
-            self.gamma_neg = gamma_neg
-            self.margin = margin
-            self.eps = eps
+    def __init__(self, gamma_pos=0, gamma_neg=4, eps=1e-8):
+        super().__init__()
+        self.gamma_pos = gamma_pos
+        self.gamma_neg = gamma_neg
+        self.eps = eps
 
-    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        p_neg = torch.clamp(torch.sigmoid(y_pred) - self.margin, min=self.eps)
-        logit = y_pred * y_true + (torch.log(p_neg) - torch.log(1 - p_neg)) * (1 - y_true)
-        bce_loss = nn.BCEWithLogitsLoss()(
-            logit, y_true
-        )
-        p_t = torch.exp(-bce_loss)
-        gamma = self.gamma_pos * y_true + self.gamma_neg * (1 - y_true)
-        loss = bce_loss * ((1 - p_t) ** gamma)
-        return loss.mean()
+    def forward(self, logits, target):
+        """
+        logits: (batch_size, num_classes)
+        target: (batch_size,) with class indices in [0, num_classes-1]
+        """
+        probs = F.softmax(logits, dim=1).clamp(min=self.eps, max=1 - self.eps)
+
+        # positive and negative focusing
+        pos_loss = torch.pow(1 - probs, self.gamma_pos) * torch.log(probs)
+        neg_loss = torch.pow(probs, self.gamma_neg) * torch.log(1 - probs)
+
+        loss = -target * pos_loss - (1 - target) * neg_loss
+        loss = loss.sum(dim=1).mean()
+        return loss

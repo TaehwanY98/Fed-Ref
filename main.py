@@ -167,7 +167,7 @@ elif args.type == "celeba":
 elif args.type == "femnist":
     dataset_partions = [data_set.skip(sum(info["num_samples"].values[:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"].values)]
 elif args.type == "cinic10":
-    dataset_partions = [data_set.skip(sum(info["num_samples"].values[:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"].values)]
+    dataset_partions = [data_set.shuffle(args.seed).skip(sum(info["num_samples"][:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.shuffle(args.seed).take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"])]
 
 def set_parameters(net, new_parameters):
     for old, new in zip(net.parameters(), new_parameters):
@@ -198,9 +198,9 @@ def client_fn(context: Context):
         trainF = femnist.train
         validF = femnist.valid
     elif args.type == "cinic10":
-        id = random.randrange(0, int(args.client_num)*int(args.round))%10
+        id = random.randint(0, 9)
         length = int(info["num_samples"][id] // args.batch_size)
-        train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).take(9000).batch(args.batch_size)
+        train_loader = dataset_partions[id].shuffle(buffer_size=1000).batch(args.batch_size)
         trainF = cinic.train
         validF = cinic.valid
     elif args.type == "office":
