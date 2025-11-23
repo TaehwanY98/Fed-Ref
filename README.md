@@ -66,11 +66,15 @@ For optimizing model training in FL scenarios, existing studies have proposed va
 ### Results
 FEMNIST
 
-<img src="./res/femnist/loss.png" alt="reference model detail" width="250"/><img src="./res/femnist/acc.png" alt="reference model detail" width="250"/><img src="./res/femnist/f1score.png" alt="reference model detail" width="250"/>
+<img src="./res/femnist/loss.png" alt="cost values" width="250"/><img src="./res/femnist/acc.png" alt="accuracy values" width="250"/><img src="./res/femnist/f1score.png" alt="f1score values" width="250"/>
 
 CINIC10
 
-<img src="./res/cinic10/loss.png" alt="reference model detail" width="250"/><img src="./res/cinic10/acc.png" alt="reference model detail" width="250"/><img src="./res/cinic10/f1score.png" alt="reference model detail" width="250"/>
+<img src="./res/cinic10/loss.png" alt="cost values" width="250"/><img src="./res/cinic10/acc.png" alt="accuracy values" width="250"/><img src="./res/cinic10/f1score.png" alt="f1score values" width="250"/>
+
+FeTs2022
+
+<img src="./res/fets/loss.png" alt="cost values" width="250"/><img src="./res/fets/dice.png" alt="mIoU" width="250"/><img src="./res/fets/hf95.png" alt="reference model detail" width="250"/>
 
 Communication Efficiency.
 
