@@ -12,7 +12,7 @@ Recently, in the AI industry, federated learning (FL) has been proposed as a pro
     2. Decreasing computing cost and energy consumption.
     3. How to protect the model from malicious users.
 
-<img src="./res/FL.png" alt="Basic FL system" width="350"/>
+<img src="./res/FedRef.png" alt="Basic FL system" width="700"/>
 
 We introduce our FedRef: a communication-efficient Bayesian fine-tuning approach with a reference model. This concept overcomes catastrophic forgetting in each round by integrating previous model features into the maximum a posteriori (MAP) problem.
 
@@ -26,6 +26,8 @@ Selected client numbers $k \in [1,2,3,..,K]$, where $K$ is the total number of s
 <img src="./res/equation2.png" alt="Bayesian" width="500"/>
 
 In the above equation, the constant value $\sum_{k}^{K} F_k$ denotes the sum of client losses. The diagonal matrix $\mathrm{diag}(W_1, \dots, W_K)$ represents aggregation weights (e.g. $\frac{n_i}{n}$). $\sum_{i} (\theta_i - \theta_{0,i})^2$ signifies $L_2$ regularization of model $\theta-\theta_0$. Regarding parameter requirements, only clients' losses are needed for our FedRef concept. Only on the server side, model optimization is performed, which can decrease client computing cost. In the FedRef, $\theta^2$ should be set as the reference model $\theta_{ref}$. For detail on $\theta_{ref}$, the reference model is defined as:
+
+<img src="./res/referenceModel.png" alt="Basic FL system" width="350"/>
 
 <img src="./res/equation3.png" alt="reference model" width="300"/>
 
