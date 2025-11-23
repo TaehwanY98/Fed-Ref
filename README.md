@@ -45,7 +45,13 @@ Experimentally, a suitable value for $p$ was analyzed heuristically to be 3 to 5
 | Tools            | Visual studio code                              |
 
 ### Results
+FEMNIST
 
+<img src="./res/femnist/loss.png" alt="reference model detail" width="150"/><img src="./res/femnist/acc.png" alt="reference model detail" width="150"/><img src="./res/femnist/f1score.png" alt="reference model detail" width="150"/>
+
+CINIC10
+
+<img src="./res/cinic10/loss.png" alt="reference model detail" width="150"/><img src="./res/cinic10/acc.png" alt="reference model detail" width="150"/><img src="./res/cinic10/f1score.png" alt="reference model detail" width="150"/>
 ### Run
 
 Available FL Strategies
