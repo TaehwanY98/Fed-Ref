@@ -1,23 +1,38 @@
 ﻿## Fed-Ref: Communication-Efficient Bayesian Fine Tuning with Reference Model
 
 ### Abstract
-Federated learning (FL) collaboratively trains artificial intelligence (AI) models to ensure user data privacy. Sharing only model updates generated from local training using local client data with the server enhances user data privacy. However, model performance may suffer due to data and system heterogeneity among clients in FL scenarios. Previous studies have proposed model optimization, fine-tuning, or personalization to achieve optimal performance. Despite these efforts, models resulting from FL scenarios exhibit catastrophic forgetting, which increases clients' communication and computing costs for model optimization and increases energy consumption. To address these challenges, we propose a reference model-based fine-tuning method for federated learning that overcomes catastrophic forgetting in each round. Our method is derived from Bayesian parameter-efficient transfer learning and includes an optimal proximal term. It utilizes a reference model that incorporates previous model parameters and reviews previous global features in the model optimization step to decrease the catastrophic forgetting issue. As a result, our method achieves higher model performance and lower communication and computing costs for clients than existing works.
+Federated learning (FL) collaboratively trains artificial intelligence (AI) models to ensure user data privacy. Sharing only model updates generated from local training on client data with the server enhances user data privacy. However, model performance may suffer due to data and system heterogeneity among clients in FL scenarios. Previous studies have proposed model optimization, fine-tuning, and personalization to achieve improved model performance. Despite these efforts, models resulting from FL scenarios often exhibit catastrophic forgetting, which increases the communication and computational costs of clients for model optimization and raises energy consumption. To address these challenges, we propose a reference model-based fine-tuning method for federated learning that overcomes catastrophic forgetting in each round. Our method is derived from Bayesian parameter-efficient transfer learning and includes an proximal term. It employs a reference model that incorporates previous model parameters and reviews previous global features in the model optimization step to mitigate catastrophic forgetting. As a result, our method achieves higher model performance and lower communication and computational costs for clients than existing methods.
 
 Paper link: https://doi.org/10.48550/arXiv.2506.23210
 
 ### Introduction
-Recently, in the AI industry, federated learning (FL) has been proposed as a prominent solution to protect users' data privacy while allowing collaborative model training between independent affiliations. Users' data are fundamentally protected because clients share only updated local model parameters (resulting from local training using their local data) and other non-private values with the server or other clients. The server then computes the global model by aggregating the local models received by the clients. However, as highlighted in \cite{fedavg}, FL solutions face numerous challenges. Our focus is on optimizing model performance and decreasing computing costs on client devices.
+Federated learning (FL) has recently been proposed as a promising solution to protect user data privacy while allowing collaborative model training between independent clients (devices or institutions) \cite{yang2019federated}\cite{lim2020federated}. User data are fundamentally protected because clients share only updated local model parameters (resulting from local training using local user data) and other non-private values with the server or other clients. The server then computes the global model by aggregating the local model updates received from the clients. However, as highlighted in \cite{fedavg}, FL approaches face numerous challenges, including:
     
-    1. Model performance optimization in FL scenarios.
-    2. Decreasing computing cost and energy consumption.
-    3. How to protect the model from malicious users.
+    1. Optimization of predictive model performance.
+    2. Decreasing computational costs and energy consumption. 
+    3. Protecting the global model from malicious users and clients.
+
+Our focus is on optimizing predictive model performance and reducing computational costs on client devices.
 
 <img src="./res/FedRef.png" alt="Basic FL system" width="700"/>
 
-We introduce our FedRef: a communication-efficient Bayesian fine-tuning approach with a reference model. This concept overcomes catastrophic forgetting in each round by integrating previous model features into the maximum a posteriori (MAP) problem.
+Above figure provides an overview of our proposed FedRef algorithm. The FedRef algorithm can be summarized in the following steps:
+    1. Server sends a model to clients.
+    2. Clients perform local training.
+    3. Clients send a model parameter and cost value.
+    4. Server aggregates selected clients parameters.
+    5. Server computes a reference model.
+    6. Server optimize global model derived from our Bayesian optimization using the reference model.
+    7. Server send the result of the optimization to the clients.
+
+ The existing studies have limitations of high client-side computational costs and catastrophic forgetting issues on each rounds. For optimal model performance and low client-side computational cost, we propose __FedRef__, a communication-efficient Bayesian fine-tuning method with a reference model that overcomes catastrophic forgetting by inferring from global models of previous rounds. 
 
 ### FedRef: Communication-Efficient Bayesian Fine Tuning with Reference Model
-For optimal model performance and low client computing cost, we proposed FedRef: communication-efficient Bayesian fine-tuning with reference model which overcome catastrophic forgetting by inferring of previous rounds model. We carefully defined the model proximal term as a MAP problem for FL scenarios in under equation derived from the Bayesian fine-tuning paper.
+
+<img src="./res/referenceModel.png" alt="referenc model description" width="350"/>
+
+As illustrated in above figure, the reference model serves as a target model of proximal term objective reference to mitigate a deviation from previous round models. In the existing study \cite{bayesian}, transfer learning is a concept of model distillation and focus on how to distill and transfer features from alternative reference models to a target model. The most of FL scenario also focus on how do distillate to transfer features from each clients to global model. Therefore, in the most of FL scenarios, the ideal case assumes each client’s model inference is an independent event and when the model inference of all clients is, on average, the most accurate phase.
+
 
 <img src="./res/equation1.png" alt="MAP problem" width="500"/>
 
@@ -26,8 +41,6 @@ Selected client numbers $k \in [1,2,3,..,K]$, where $K$ is the total number of s
 <img src="./res/equation2.png" alt="Bayesian" width="500"/>
 
 In the above equation, the constant value $\sum_{k}^{K} F_k$ denotes the sum of client losses. The diagonal matrix $\mathrm{diag}(W_1, \dots, W_K)$ represents aggregation weights (e.g. $\frac{n_i}{n}$). $\sum_{i} (\theta_i - \theta_{0,i})^2$ signifies $L_2$ regularization of model $\theta-\theta_0$. Regarding parameter requirements, only clients' losses are needed for our FedRef concept. Only on the server side, model optimization is performed, which can decrease client computing cost. In the FedRef, $\theta^2$ should be set as the reference model $\theta_{ref}$. For detail on $\theta_{ref}$, the reference model is defined as:
-
-<img src="./res/referenceModel.png" alt="Basic FL system" width="350"/>
 
 <img src="./res/equation3.png" alt="reference model" width="300"/>
 
@@ -46,6 +59,10 @@ Experimentally, a suitable value for $p$ was analyzed heuristically to be 3 to 5
 | GPU              | Nvidia RTX 4090                                 |
 | Tools            | Visual studio code                              |
 
+
+### Conclusion
+For optimizing model training in FL scenarios, existing studies have proposed various proximal terms that serve as regularization terms in the objective function, preventing local models from drifting too far from the global model. However, these approaches do not address the issue of catastrophic forgetting in each round, and their proximal terms have to be computed on the client side, increasing client-side computational costs. Our FedRef method, a communication-efficient Bayesian fine-tuning approach using a reference model, overcomes these limitations through server-side optimization of an objective function that includes a proximal term inferring previous global features. This approach leads to low client-side computational cost and high model optimization performance, thereby improving model training efficiency in federated learning settings.
+
 ### Results
 FEMNIST
 
@@ -54,6 +71,11 @@ FEMNIST
 CINIC10
 
 <img src="./res/cinic10/loss.png" alt="reference model detail" width="250"/><img src="./res/cinic10/acc.png" alt="reference model detail" width="250"/><img src="./res/cinic10/f1score.png" alt="reference model detail" width="250"/>
+
+Communication Efficiency.
+
+<img src="./res/femnist/comm.png" alt="communication resources" width="250"/><img src="./res/cinic10/comm.png" alt="communication resources" width="250"/><img src="./res/fets/comm.png" alt="communication resources" width="250"/>
+
 ### Run
 
 Available FL Strategies
