@@ -125,7 +125,7 @@ elif args.type == "office":
 elif args.type == "femnist":
     lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "cinic10":
-    lossf = AsymmetricLoss().to(DEVICE)
+    lossf = AsymmetricLoss(gamma_pos=1).to(DEVICE)
 elif args.type == "celeba":
     lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "shakespeare":
@@ -230,7 +230,7 @@ if __name__ =="__main__":
     elif args.mode =="fedprox":
         strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
     elif args.mode =="fedopt":
-        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c)
+        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
     

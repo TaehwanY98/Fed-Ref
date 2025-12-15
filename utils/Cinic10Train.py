@@ -64,12 +64,13 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
             out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE)) 
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 10).type(float32)
-            losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+            losses += lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
         else:
             out = net(X.unsqueeze(-1).permute(0,3,1,2).unsqueeze(0).to(DEVICE))
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 10).type(float32)
             losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
+            
         out = out.softmax(1).argmax(1)
         Dicenary[f"accuracy"] += accuracy_score(out.cpu().detach().numpy(), Y.argmax(1).squeeze().type(int64).cpu().detach().numpy())
         Dicenary[f"f1score"] += f1_score(out.cpu().detach().numpy(), Y.argmax(1).squeeze().type(int64).cpu().detach().numpy(), average="weighted")
