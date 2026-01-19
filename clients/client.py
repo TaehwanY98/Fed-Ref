@@ -33,6 +33,7 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         self.valid = validF
         self.args = args
         self.length = length
+        self.computing = 0
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
             old.data = torch.Tensor(new).to(self.DEVICE)

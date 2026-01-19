@@ -17,11 +17,11 @@ import utils.ShakespeareTrain as shakespeare
 import utils.CelebaTrain as celeba
 import utils.OfficeTrain as office
 from utils.CustomDataset import *
+from Network.CNN import *
 from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from Network.Tinycnn import *
 from clients import client, clientProxy, clientOpt, clientRef
 import os
 from torch.optim import SGD
@@ -79,9 +79,9 @@ if args.mode !="fedref":
     if args.type == "office":
         net = ResNet(outdim=100)
     if args.type == "femnist":
-        net = tinyNet(outdim=62)
+        net = FEMNIST_CNN(num_classes=62)
     if args.type == "cinic10":
-        net = tinyNet(outdim=10)
+        net = CINIC10_LightCNN(num_classes=10)
     if args.type == "celeba":
         net = ResNet(outdim=2)
     net.to(DEVICE)
@@ -103,14 +103,14 @@ elif args.mode =="fedref":
         ref_net = ResNet(outdim=10)
         ref_net.to(DEVICE)
     elif args.type == "cinic10":
-        aggregated_net = tinyNet(outdim=10)
+        aggregated_net = CINIC10_LightCNN(num_classes=10)
         aggregated_net.to(DEVICE)
-        ref_net = tinyNet(outdim=10)
+        ref_net = CINIC10_LightCNN(num_classes=10)
         ref_net.to(DEVICE)
     elif args.type == "femnist":
-        aggregated_net = tinyNet(outdim=62)
+        aggregated_net = FEMNIST_CNN(num_classes=62)
         aggregated_net.to(DEVICE)
-        ref_net = tinyNet(outdim=62)
+        ref_net = FEMNIST_CNN(num_classes=62)
         ref_net.to(DEVICE)
     elif args.type == "celeba":
         aggregated_net = ResNet(outdim=2)
@@ -125,7 +125,7 @@ elif args.type == "office":
 elif args.type == "femnist":
     lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "cinic10":
-    lossf = AsymmetricLoss(gamma_pos=1).to(DEVICE)
+    lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "celeba":
     lossf = AsymmetricLoss().to(DEVICE)
 elif args.type == "shakespeare":
@@ -148,7 +148,9 @@ elif args.type == "celeba":
 elif args.type == "femnist":
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
-    validLoader = data_set.to_iterable_dataset().batch(args.batch_size)
+    data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
+    validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
+    data_set = data_set["train"]
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")

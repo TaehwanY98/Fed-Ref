@@ -43,7 +43,6 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         def proxy_lossf(outputs, targets):
             return self.lossf(outputs, targets)+(config["proximal_mu"] / 2) \
                 * sum([np.linalg.norm(n.flatten().cpu().detach().numpy()-g.flatten(), 2) for n, g in zip(self.net.parameters(), copy.deepcopy(parameters))])
-
         self.train(self.net, self.train_loader, None, self.epoch, proxy_lossf, self.optim, self.DEVICE, None)
         return self.get_parameters(config={}), self.length, {}
 

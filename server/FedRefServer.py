@@ -40,7 +40,23 @@ class CircleQueue():
     def enqueue(self, item):
         self.rear = (self.rear + 1) % self.max_que_size
         self.items[self.rear] = item
-        
+
+class RefWeights():
+    def __init__(self, max_queue_size):
+        self.front = 0
+        self.rear = 0
+        self.items = np.arange(1, max_queue_size+1)
+        self.max_que_size = max_queue_size
+    def isEmpty(self):
+        return self.front == self.rear
+    def isFull(self):
+        return self.front == (self.rear+1)%self.max_que_size    
+    def clear(self):
+        self.front = self.rear
+    def update(self):
+        self.rear = (self.rear + 1) % self.max_que_size
+        self.items = self.items -1
+        self.items[self.rear] = self.max_que_size+1
 
 class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
@@ -54,6 +70,7 @@ class FedRef(flwr.server.strategy.FedAvg):
         self.evaluate_fn = self.evaluate_fn
         self.p = p
         self.aggs = CircleQueue(p)
+        self.ref_weights = RefWeights(p)
         self.losses = [None]
         
     def SetTheta0(self, agg_ndarrays, ref_ndarrays):
@@ -63,7 +80,11 @@ class FedRef(flwr.server.strategy.FedAvg):
         
         
     def aggregate_fit(self, server_round, results, failures):
-        
+        if server_round%self.args.sigmar==0:
+            self.args.lda2 = self.args.lda2*self.args.sigmaw
+            if self.args.lda2>self.args.toplda2:
+                self.args.lda2=self.args.toplda2
+
         """Aggregate fit results using weighted average."""
         if not results:
             return None, {}
@@ -103,15 +124,14 @@ class FedRef(flwr.server.strategy.FedAvg):
                 ]
                 aggregated_ndarrays = aggregate(weights_results)
                 self.aggs.enqueue(aggregated_ndarrays)
-                
                 aggLosses = [res.metrics["loss"] for _,res in results]
                 aggExampls = [res.num_examples for _,res in results]
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
-                ref_ndarrays = [[layer for layer in weights] for weights in self.aggs.items]
+                ref_ndarrays = [[layer*ref_w/np.sum(self.ref_weights.items) for layer in weights] for weights, ref_w in zip(self.aggs.items, self.ref_weights.items)]
                 
                 if server_round>self.p+1:
-                    ref_ndarrays_sq = [(reduce(np.add, layer_updates) / self.aggs.max_que_size)-(reduce(np.add, t0) / self.aggs.max_que_size) for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
+                    ref_ndarrays_sq = [(reduce(np.add, layer_updates))-(reduce(np.add, t0)) for layer_updates, t0 in zip(zip(*ref_ndarrays), self.theta0["ref"])]
                     agg_ndarrays_sq = [layer_updates-t0 for layer_updates, t0 in zip(aggregated_ndarrays, self.theta0["agg"])]
                 
                 metrics_aggregated = {}
@@ -121,16 +141,16 @@ class FedRef(flwr.server.strategy.FedAvg):
                     
                 
                 if server_round>self.p+1:
-                    out = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda=self.args.lda)
+                    out = self.BayesianTransferLearning(aggregated_ndarrays, self.args.lr, p1Losses=aggLosses, preLosses=self.losses[0], p1Weights=aggWeights,target1_netL1=agg_ndarrays_sq ,target2_netL1=ref_ndarrays_sq, Lambda1=self.args.lda1, Lambda2=self.args.lda2)
                     parameters_aggregated = ndarrays_to_parameters(out)
                 else:
                     parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
                 self.losses[0]=aggLosses
-                self.SetTheta0([layer for layer in aggregated_ndarrays], [reduce(np.add, layer) / self.aggs.max_que_size for layer in zip(*ref_ndarrays)])
+                self.SetTheta0([layer for layer in aggregated_ndarrays], [reduce(np.add, layer) for layer in zip(*ref_ndarrays)])
                 return parameters_aggregated, metrics_aggregated
         
-    def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda=0.2):
-        p1 = [W1 - np.nan_to_num(lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda*np.linalg.norm(W3.flatten(),2) + Lambda*np.linalg.norm(W2.flatten(), 2))) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
+    def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda1=0.2, Lambda2=0.2):
+        p1 = [W1 - np.nan_to_num(lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda1*np.linalg.norm(W3.flatten(),2) + Lambda2*np.linalg.norm(W2.flatten(), 2))) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
         return p1 
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
@@ -152,13 +172,13 @@ class FedRef(flwr.server.strategy.FedAvg):
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
-            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'))
+            old_historyframe = pd.read_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda1{self.args.lda1*10}_p{self.args.prime}.csv'))
             historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
             newframe=pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
+            newframe.to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda1{self.args.lda1*10}_p{self.args.prime}.csv'), index=False)
         else:
-            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv'), index=False)
-        # save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda*10}_p{self.args.prime}_{server_round}.pt")
+            pd.DataFrame({k:[v] for k, v in history.items()}).to_csv(os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda1{self.args.lda1*10}_p{self.args.prime}.csv'), index=False)
+        # save(self.aggregated_net.state_dict(), f"./Models/{self.args.version}/net_lda{self.args.lda1*10}_p{self.args.prime}_{server_round}.pt")
         return history['loss'], {key:value for key, value in history.items() if key != "loss" }
         
 def make_dir(path):

@@ -26,7 +26,7 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([torch.Tensor(np.array(s.resize((32,32), Image.LANCZOS).convert("L"))) for s in sample["image"]], 0)
+            X= torch.stack([torch.Tensor(np.array(s.convert("L"))) for s in sample["image"]], 0)
             Y= torch.Tensor(sample["character"])
             if len(sample) != 1:
                 out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE))
@@ -62,7 +62,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
 
     for sample in tqdm(valid_loader, desc="Validation: "):
         
-        X= torch.stack([torch.Tensor(np.array(s.resize((32,32), Image.LANCZOS).convert("L"))) for s in sample["image"]], 0)
+        X= torch.stack([torch.Tensor(np.array(s.convert("L"))) for s in sample["image"]], 0)
         Y= torch.Tensor(sample["character"])
         if len(sample) != 1:
             out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE)) 

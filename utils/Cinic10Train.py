@@ -22,14 +22,14 @@ def train(net, train_loader, valid_loader, epoch, lossf, optimizer, DEVICE, save
     for e in range(epoch):
         net.train()
         for sample in tqdm(train_loader):
-            X= torch.stack([torch.Tensor(np.array(s.convert("L"))) for s in sample["image"]], 0)
+            X= torch.stack([torch.Tensor(np.array(s.convert("RGB"))) for s in sample["image"]], 0)
             Y= torch.Tensor(sample["label"])
             if len(sample) != 1:
-                out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE))
+                out = net(X.permute(0,3,1,2).to(DEVICE))
                 Y = one_hot(Y.type(int64), 10).type(float32)
                 loss = lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE))
             else:
-                out = net(X.unsqueeze(-1).permute(0,3,1,2).unsqueeze(0).to(DEVICE))
+                out = net(X.permute(0,3,1,2).unsqueeze(0).to(DEVICE))
                 Y = one_hot(Y.type(int64), 10).type(float32)
                 loss = lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE))
             loss.backward()
@@ -58,15 +58,15 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     
     for sample in tqdm(valid_loader, desc="Validation: "):
     
-        X= torch.stack([torch.Tensor(np.array(s.convert("L"))) for s in sample["image"]], 0)
+        X= torch.stack([torch.Tensor(np.array(s.convert("RGB"))) for s in sample["image"]], 0)
         Y= torch.Tensor(sample["label"])
         if len(sample) != 1:
-            out = net(X.unsqueeze(-1).permute(0,3,1,2).to(DEVICE)) 
+            out = net(X.permute(0,3,1,2).to(DEVICE)) 
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 10).type(float32)
             losses += lossf(out.squeeze().type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()
         else:
-            out = net(X.unsqueeze(-1).permute(0,3,1,2).unsqueeze(0).to(DEVICE))
+            out = net(X.permute(0,3,1,2).unsqueeze(0).to(DEVICE))
             out = out.squeeze()
             Y = one_hot(Y.type(int64), 10).type(float32)
             losses += lossf(out.type(float32).to(DEVICE), Y.type(float32).to(DEVICE)).item()

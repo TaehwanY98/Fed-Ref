@@ -45,7 +45,7 @@ class FocalLoss(nn.Module):
             return F_loss
         
 class AsymmetricLoss(nn.Module):
-    def __init__(self, gamma_pos=0, gamma_neg=4, eps=1e-8):
+    def __init__(self, gamma_pos=0, gamma_neg=4, eps=1e-6):
         super().__init__()
         self.gamma_pos = gamma_pos
         self.gamma_neg = gamma_neg
