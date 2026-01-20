@@ -9,7 +9,7 @@
 | Environment set  | Settings for detail                             |
 |------------------|-------------------------------------------------|
 | FL framework     | Flower: a friendly federated learning framework |
-| Language         | Python                                          |
+| Language         | Python: 3.9.21                                  |
 | Operation System | Linux 24.04 LTS                                 |
 | GPU              | Nvidia RTX 4090                                 |
 | Tools            | Visual studio code                              |
