@@ -3,7 +3,7 @@
 <img src="./res/FedRef.png" alt="overview-fedref" width="auto"/>
 
 
-<img src="./res/referenceModel.png" alt="reference-model" width="450pt"/>
+<img src="./res/referenceModel.png" alt="Bayesian fine-tuning approach" width="350pt"/>
 
 ### Settings
 | Environment set  | Settings for detail                             |
@@ -17,13 +17,41 @@
 
 ### Result
 
+Will be updated..
+<!-- <img src="./res/requireRounds.png" alt="Required rounds reach on specific threshold" width="auto"/> -->
 
-<img src="./res/requireRounds.png" alt="Required rounds reach on specific threshold" width="auto"/>
 
-
-<img src="./res/forgetting.png" alt="Catastrophic forgetting ratio and measure" width="auto"/>
+<!-- <img src="./res/forgetting.png" alt="Catastrophic forgetting ratio and measure" width="auto"/> -->
 
 ### Run
+
+Available Dataset
+1. cinic10
+2. femnist
+3. fets * need custom data settings following: 
+
+
+        ├── Folder (parameter: -cd ./Folder)
+            ├── client1
+            ├── client2
+            ├── client3
+            ├── client4
+            ├── client5
+            ├── client6
+            ├── client7
+            ├── client8
+            ├── client9
+            ├── client10
+            ├── client11
+            ├── client12
+            ├── client13
+            ├── client14
+            ├── client15
+            ├── client16
+            ├── client17
+            └── test1 (parameter: --data-dir ./Partitioning/test1)
+    
+
 
 Available FL Strategies
 1. FedAvg
