@@ -49,7 +49,7 @@ Available Dataset
             ├── client15
             ├── client16
             ├── client17
-            └── test1 (parameter: --data-dir ./Partitioning/test1)
+            └── test1 (parameter: --data-dir ./Folder/test1)
     
 
 
