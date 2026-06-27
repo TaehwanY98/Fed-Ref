@@ -5,10 +5,12 @@ import server.FedProxServer as prox
 import server.FedOptServer as opt
 import flwr as fl
 import torch
-from torch.utils.data import DataLoader, random_split, Dataset
+from torch.utils.data import DataLoader, random_split
 from torchvision import datasets
-# from torchvision.transforms import Compose, ToTensor, Normalize, Resize
-from torchmetrics.classification import HammingDistance
+from torchvision.transforms import ToTensor, GaussianBlur, RandomApply, ToPILImage
+from torchvision.transforms.v2 import GaussianNoise
+
+# from torchvision.transforms import Compose, ToTensor, 
 from utils import parser
 import utils.FetsTrain as fets
 import utils.Cinic10Train as cinic
@@ -28,7 +30,7 @@ from torch.optim import SGD
 import segmentation_models_pytorch as smp
 import warnings
 import datasets
-import random
+
 args = parser.Simulationparser()
 fets.set_seeds(args)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,30 +137,49 @@ if args.type == "fets":
     if args.data_dir is None:
         pass
     else:
-        valid_set = Fets2022(args.data_dir)
+        valid_set = Fets2022(args.data_dir, args.degrade)
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 elif args.type == "shakespeare":
     pass
 elif args.type == "celeba":
+    def CustomTransform(example):
+        out=ToTensor()(example["image"])
+        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+        out = ToPILImage()(out)
+        example["image"] = out
+        return example
     Celeba = datasets.load_dataset("flwrlabs/celeba")
-    data_set = Celeba["train"]
+    data_set = Celeba["train"].map(CustomTransform)
     validLoader = Celeba["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": data_set.to_pandas()["celeb_id"].value_counts().sort_index()}
     info["custom_part"] = [info["num_samples"][info["num_samples"].index%16==v].sum() for v in range(0, 16)]
 elif args.type == "femnist":
+    def CustomTransform(example):
+        out=ToTensor()(example["image"])
+        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+        out = ToPILImage()(out)
+        example["image"] = out
+        return example
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
     data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    data_set = data_set["train"]
+    data_set = data_set["train"].map(CustomTransform)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
+    def CustomTransform(example):
+        out=ToTensor()(example["image"])
+        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+        out = ToPILImage()(out)
+        example["image"] = out
+        return example
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
-    data_set = CINIC10["train"]
+    data_set = CINIC10["train"].map(CustomTransform)
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": [9000]*10}
 elif args.type == "office":
     pass
+
 
 if args.type == "fets":
     client_dirs = [os.path.join(args.client_dir, f"client{num}") for num in range(1, 17)]
@@ -176,9 +197,9 @@ def set_parameters(net, new_parameters):
         shape = old.data.size()
         old.data = torch.Tensor(new).view(shape).to(DEVICE)
 
-def client_fn(context: Context):
+def client_fn(cid: str):
     if args.type == "fets":
-        id = random.randint(0, 15)
+        id = int(cid) % 15
         trainset = Fets2022(client_dirs[id])
         train_loader = DataLoader(trainset, args.batch_size, shuffle=True, collate_fn=lambda x:x)
         length = len(train_loader)
@@ -188,19 +209,19 @@ def client_fn(context: Context):
         trainF = shakespeare.train
         validF = shakespeare.valid
     elif args.type == "celeba":
-        id = random.randint(0, 15)
+        id = int(cid) % 15
         length = int(info["custom_part"][id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = celeba.train
         validF = celeba.valid
     elif args.type == "femnist":
-        id = random.randint(0, 6)
+        id = int(cid) % 6
         length = int(info["num_samples"].iloc[id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = femnist.train
         validF = femnist.valid
     elif args.type == "cinic10":
-        id = random.randint(0, 9)
+        id = int(cid) % 9
         length = int(info["num_samples"][id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000).batch(args.batch_size)
         trainF = cinic.train

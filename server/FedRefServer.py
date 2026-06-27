@@ -62,7 +62,7 @@ class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net:nn.Module, aggregated_net:nn.Module, lossf, validLoader, args, p:int=2, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
         self.ref_net = ref_net
-        self.theta0 ={"agg":[], "ref": [val.cpu().detach().numpy() for val in self.ref_net.parameters()]}
+        self.theta0 = {"agg":[], "ref": [val.cpu().detach().numpy() for val in self.ref_net.parameters()]}
         self.aggregated_net = aggregated_net
         self.lossf = lossf
         self.validLoader = validLoader
@@ -80,10 +80,6 @@ class FedRef(flwr.server.strategy.FedAvg):
         
         
     def aggregate_fit(self, server_round, results, failures):
-        if server_round%self.args.sigmar==0:
-            self.args.lda2 = self.args.lda2*self.args.sigmaw
-            if self.args.lda2>self.args.toplda2:
-                self.args.lda2=self.args.toplda2
 
         """Aggregate fit results using weighted average."""
         if not results:
@@ -125,6 +121,25 @@ class FedRef(flwr.server.strategy.FedAvg):
                 aggregated_ndarrays = aggregate(weights_results)
                 self.aggs.enqueue(aggregated_ndarrays)
                 aggLosses = [res.metrics["loss"] for _,res in results]
+                if self.losses[0] is None:
+                    pass
+                else:
+                    if self.losses[0] > aggLosses:
+                        pass
+                    else:
+                        self.SetTheta0(copy.deepcopy(aggregated_ndarrays), None)
+                        aggLosses = [res.metrics["loss"] for _,res in results]
+                        self.losses[0]=aggLosses
+                        parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
+                        metrics_aggregated = {}
+                        if self.fit_metrics_aggregation_fn:
+                            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+                            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+                        elif server_round == 1:  # Only log this warning once
+                            log(WARNING, "No fit_metrics_aggregation_fn provided")
+                        return parameters_aggregated, metrics_aggregated
+                # Aggregate custom metrics if aggregation fn was provided
+                metrics_aggregated = {}
                 aggExampls = [res.num_examples for _,res in results]
                 aggTotalExamples = sum(aggExampls)
                 aggWeights = np.array(aggExampls)/aggTotalExamples
@@ -150,7 +165,7 @@ class FedRef(flwr.server.strategy.FedAvg):
                 return parameters_aggregated, metrics_aggregated
         
     def BayesianTransferLearning(self, p1, lr, p1Losses, preLosses, p1Weights, target1_netL1, target2_netL1, Lambda1=0.2, Lambda2=0.2):
-        p1 = [W1 - np.nan_to_num(lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda1*np.linalg.norm(W3.flatten(),2) + Lambda2*np.linalg.norm(W2.flatten(), 2))) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
+        p1 = [W1 - np.nan_to_num(lr*(reduce(np.add, (p1Weights)/len(p1Losses)*((reduce(np.add, p1Losses)) - reduce(np.add, preLosses))) +Lambda1*(np.linalg.norm(W3.flatten(),2) - np.linalg.norm(W2.flatten(), 2)))) for W1, W2, W3 in zip(p1, target2_netL1, target1_netL1)]
         return p1 
         
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:

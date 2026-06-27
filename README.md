@@ -1,9 +1,14 @@
-﻿## Fed-Ref: Communication-Efficient Bayesian Fine Tuning with Reference Model
+﻿## Fed-Ref: Bayesian Fine Tuning Using a Reference Model to Alleviate Unbounded Drift for Heterogeneous Federated Learning
+
+### Abstract
+
+Federated learning (FL) enables collaborative model training across  distributed clients while preserving data privacy. However, data and system heterogeneity often cause unbounded drift in model updates caused from multiple local step, partial participation, unbounded dynamics, leading to degraded predictive performance and catastrophic forgetting and inefficient client computation. To address these challenges, we propose FedRef, a Bayesian fine-tuning method that leverages a reference model generalized from previous global models. FedRef integrates a MAP-based regularization term that calibrates global model updates toward a temporally aggregated reference model, thereby alleviating unbounded drift and improving update stability. Unlike prior approaches, FedRef performs all fine‑tuning operations on the server side, reducing client-side computational overhead while maintaining effective global optimization. Experiments on image classification (FEMNIST, CINIC‑10) and medical image segmentation (FeTS2022) demonstrate that FedRef achieves superior predictive performance and faster convergence under heterogeneous, non‑IID, unbounded drift settings, while preserving client-side computation compared with existing methods. These results highlight FedRef as an efficient and robust optimization framework for heterogeneous real-world FL scenarios.
+
 
 <img src="./res/FedRef.png" alt="overview-fedref" width="auto"/>
 
 
-<img src="./res/referenceModel.png" alt="Bayesian fine-tuning approach" width="350pt"/>
+<img src="./res/referenceModel.png" alt="Bayesian fine-tuning approach" width="auto"/>
 
 ### Settings
 | Environment set  | Settings for detail                             |

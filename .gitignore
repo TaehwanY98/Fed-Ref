@@ -7,3 +7,4 @@ __pycache__
 command.txt
 logs.log
 token.txt
+.vscode

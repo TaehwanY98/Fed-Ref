@@ -7,10 +7,10 @@ from skimage.transform import resize
 from skimage.util import random_noise
 from functools import reduce
 from torchvision.transforms import ToTensor, Normalize, Compose
-
+import random
 
 class Fets2022(object):
-    def __init__(self, data_dir, norm=True) -> None:
+    def __init__(self, data_dir, udp=0.0, norm=True) -> None:
         self.dir = data_dir
         self.patients = [patient for patient in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, patient))]
         self.file_names = [[x for x in os.listdir(os.path.join(data_dir,patient)) if os.path.isfile(os.path.join(data_dir, patient, x))] for patient in self.patients]
@@ -18,7 +18,7 @@ class Fets2022(object):
         self.height = 240
         self.depth = 155
         self.normalization = norm
-    
+        self.transform = udp
     def __getitem__(self, i):
         directory = self.dir
         patient = self.patients[i]
@@ -29,8 +29,8 @@ class Fets2022(object):
             if "seg" in file:
                 ypath = os.path.join(directory, patient, file)
                 
-        x = self.OpenFile(xpath)        
-        y = self.OpenFile(ypath)
+        x = self.OpenFile(xpath, self.transform)        
+        y = self.OpenFile(ypath, self.transform)
         y[y==4] = 3
         
         ret={
@@ -39,8 +39,16 @@ class Fets2022(object):
         }
         return ret
     
-    def OpenFile(self, path):
+    def OpenFile(self, path, transform=0.0):
         img = sitk.ReadImage(path, sitk.sitkFloat32)
+        if transform > random.randint(100)/100:
+            blur_filter = sitk.DiscreteGaussianImageFilter()
+            noise_filter = sitk.AdditiveGaussianNoiseImageFilter()
+            blur_filter.SetVariance(2.0)
+            noise_filter.SetMean(0.0)
+            noise_filter.SetStandardDeviation(20.0)
+            img = blur_filter.Execute(img)
+            img = noise_filter.Execute(img)
         return sitk.GetArrayFromImage(img)
             
     def __len__(self) :

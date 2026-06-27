@@ -44,18 +44,42 @@ class FocalLoss(nn.Module):
         else:
             return F_loss
         
+# class AsymmetricLoss(nn.Module):
+#     def __init__(self, gamma_pos=0, gamma_neg=4, eps=1e-6):
+#         super().__init__()
+#         self.gamma_pos = gamma_pos
+#         self.gamma_neg = gamma_neg
+#         self.eps = eps
+
+#     def forward(self, logits, target):
+#         """
+#         logits: (batch_size, num_classes)
+#         target: (batch_size,) with class indices in [0, num_classes-1]
+#         """
+#         probs = F.softmax(logits, dim=1).clamp(min=self.eps, max=1 - self.eps)
+
+#         # positive and negative focusing
+#         pos_loss = torch.pow(1 - probs, self.gamma_pos) * torch.log(probs)
+#         neg_loss = torch.pow(probs, self.gamma_neg) * torch.log(1 - probs)
+
+#         loss = -target * pos_loss - (1 - target) * neg_loss
+#         loss = loss.sum(dim=1).mean()
+#         return loss
+    
 class AsymmetricLoss(nn.Module):
-    def __init__(self, gamma_pos=0, gamma_neg=4, eps=1e-6):
+    def __init__(self, gamma_pos=0, gamma_neg=4, one_hot= False,eps=1e-6):
         super().__init__()
         self.gamma_pos = gamma_pos
         self.gamma_neg = gamma_neg
         self.eps = eps
-
+        self.one_hot = one_hot
     def forward(self, logits, target):
         """
         logits: (batch_size, num_classes)
         target: (batch_size,) with class indices in [0, num_classes-1]
         """
+        if self.one_hot:
+            target = F.one_hot(target.type(int64), num_classes=logits.size(1)).float()
         probs = F.softmax(logits, dim=1).clamp(min=self.eps, max=1 - self.eps)
 
         # positive and negative focusing
