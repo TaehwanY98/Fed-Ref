@@ -11,7 +11,7 @@ from utils.OfficeTrain import valid as officeValid
 from torch import nn
 import pandas as pd
 import os
-
+from pprint import pprint
 from flwr.common import (
     MetricsAggregationFn,
     NDArrays,
@@ -24,7 +24,6 @@ from flwr.common import (
 
 from typing import Callable, Optional
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FedOpt(flwr.server.strategy.FedOpt):
     def __init__(self, net, lossf, validLoader, args, fraction_fit: float = 1.0,
@@ -76,7 +75,9 @@ class FedOpt(flwr.server.strategy.FedOpt):
         self.args = args
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
+        self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
     def aggregate_fit(self, server_round, results, failures):
+        pprint(vars(self.args))
         return super().aggregate_fit(server_round, results, failures)
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
@@ -92,8 +93,8 @@ class FedOpt(flwr.server.strategy.FedOpt):
             validF = officeValid
         elif self.args.type == "celeba":
             validF = celebaValid
-        set_parameters(self.net, parameters)
-        history=validF(self.net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
+        self.set_parameters(parameters)
+        history=validF(self.net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
         make_dir(self.args.result_path)
         make_dir(os.path.join(self.args.result_path, self.args.mode))
         if server_round != 0:
@@ -128,14 +129,21 @@ class FedOpt(flwr.server.strategy.FedOpt):
             )
             for client, fit_ins in client_config_pairs
         ]
+    def set_parameters(self, parameters):
+        """서버로부터 받은 가중치를 클라이언트 모델에 안전하게 적용합니다."""
+        for old, new in zip(self.net.parameters(), parameters):
+            # 1. torch.Tensor(new) 대신 소문자 torch.tensor(new) 사용 (타입 추론 및 안전성)
+            # 2. old.data = ... 방식은 참조를 깨뜨리므로 .copy_()를 사용하여 인플레이스(In-place) 덮어쓰기 수행
+            old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))
+
+    def get_parameters(self, config={}):
+        """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
+        # 미분 그래프 추적을 끊고(detach), CPU로 이동 후, 안전하게 numpy 배열로 변환
+        return [val.detach().cpu().numpy() for val in self.net.parameters()]
     
 def make_dir(path):
     if os.path.exists(path):
         pass
     else:
         os.mkdir(path)
-
-
-def set_parameters(net, parameters):
-    for old, new in zip(net.parameters(), parameters):
-        old.data = torch.Tensor(new).to(DEVICE)
+    

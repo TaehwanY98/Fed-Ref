@@ -1,14 +1,12 @@
-﻿## Fed-Ref: Bayesian Fine Tuning Using a Reference Model to Alleviate Unbounded Drift for Heterogeneous Federated Learning
+﻿## Fed-Ref: Effective Unbounded Drift Control in Heterogeneous Federated Learning: Bayesian Fine-Tuning Using a Reference Model
 
 ### Abstract
-
-Federated learning (FL) enables collaborative model training across  distributed clients while preserving data privacy. However, data and system heterogeneity often cause unbounded drift in model updates caused from multiple local step, partial participation, unbounded dynamics, leading to degraded predictive performance and catastrophic forgetting and inefficient client computation. To address these challenges, we propose FedRef, a Bayesian fine-tuning method that leverages a reference model generalized from previous global models. FedRef integrates a MAP-based regularization term that calibrates global model updates toward a temporally aggregated reference model, thereby alleviating unbounded drift and improving update stability. Unlike prior approaches, FedRef performs all fine‑tuning operations on the server side, reducing client-side computational overhead while maintaining effective global optimization. Experiments on image classification (FEMNIST, CINIC‑10) and medical image segmentation (FeTS2022) demonstrate that FedRef achieves superior predictive performance and faster convergence under heterogeneous, non‑IID, unbounded drift settings, while preserving client-side computation compared with existing methods. These results highlight FedRef as an efficient and robust optimization framework for heterogeneous real-world FL scenarios.
+Federated learning (FL) enables collaborative model training across distributed clients while preserving data privacy. However, data and system heterogeneity often induce unbounded drift in model updates due to multiple local steps, partial participation, and unbounded dynamics. These challenges severely degrade predictive performance, exacerbate catastrophic forgetting, and hinder global optimization. To address these limitations, we propose FedRef, a robust optimization framework that leverages a reference model generalized from prior global models via Bayesian fine-tuning. FedRef integrates a Maximum A Posteriori (MAP)-based regularization mechanism that calibrates global updates toward a temporally aggregated reference model, thereby effectively controlling unbounded drift and maximizing empirical stability.
+Unlike prior approaches that rely on complex client-side optimization heuristics, FedRef achieves superior generalization by seamlessly blending a robust probabilistic prior with global likelihood optimization. By maintaining a temporal moving average centered on previous global trajectories, the proposed framework provides a highly reliable optimization anchor that effectively counteracts misleading updates under extreme unbounded drift settings. Extensive experiments on image classification (FEMNIST, CINIC-10) and medical image segmentation (FeTS2022) demonstrate that FedRef yields superior predictive performance, higher F1-scores, and significantly faster convergence under severely non-IID conditions. These results highlight FedRef as an exceptionally efficient and stable framework capable of unlocking high-fidelity generalization in heterogeneous real-world FL scenarios.
 
 ### Overview of our proposed FedRef system 
 <img src="./res/FedRef.png" alt="overview-fedref" width="auto"/>
 
-### Bayesian-Fine Tuning Using a Reference Model 
-<img src="./res/referenceModel.png" alt="Bayesian fine-tuning approach" width="auto"/>
 
 ### Settings
 | Environment set  | Settings for detail                             |
@@ -53,19 +51,14 @@ Available Dataset
             └── test1 (parameter: --data-dir ./Folder/test1)
     
 
-
 Available FL Strategies
 1. FedAvg
 2. FedProx
 3. FedOpt
 4. FedRef (our proposed work.)
-5. Adabest (will be Update...)
-6. FedEve (will be Update...)
+5. Adabest 
+6. FedEve 
 
 For example:
 
-    python main.py -v FedRefFEMNIST --data-dir None -cd None -r 30 -bs 256 -m "fedref" -t "cinic10" --client-num 10 --epoch 3 --lr 1e-6 --lda1 0.001 --prime 3 --degrade 0.0
-
-    python main.py -v FedRefFEMNIST --data-dir None -cd None -r 30 -bs 256 -m "fedref" -t "femnist" --client-num 10 --epoch 3 --lr 1e-6 --lda1 0.001 --prime 3 --degrade 0.0
-
-    python main.py -v FedRefFeTs --data-dir "folder1" -cd "folder2" -r 30 -bs 1 -m "fedref" -t "fets" --client-num 10 --epoch 3 --lr 1e-3 --lda1 0.001 --prime 3 --degrade 0.0
+    python3 main.py -r 50 -e 3 -bs 256 -l 1e-5 -udp 0.0 -t femnist -m fedavg -NON 10 -g True

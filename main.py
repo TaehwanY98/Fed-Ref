@@ -3,6 +3,7 @@ import server.FedAvgServer as avg
 import server.FedRefServer as ref
 import server.FedProxServer as prox
 import server.FedOptServer as opt
+
 import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -24,7 +25,7 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from clients import client, clientProxy, clientOpt, clientRef
+from clients import client, clientProxy, clientOpt, clientRef, clientAdaBest, clientFedEve
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
@@ -209,19 +210,19 @@ def client_fn(cid: str):
         trainF = shakespeare.train
         validF = shakespeare.valid
     elif args.type == "celeba":
-        id = int(cid) % 15
+        id = int(cid) % 16
         length = int(info["custom_part"][id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = celeba.train
         validF = celeba.valid
     elif args.type == "femnist":
-        id = int(cid) % 6
+        id = int(cid) % 7
         length = int(info["num_samples"].iloc[id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000, seed=args.seed).batch(args.batch_size)
         trainF = femnist.train
         validF = femnist.valid
     elif args.type == "cinic10":
-        id = int(cid) % 9
+        id = int(cid) % 10
         length = int(info["num_samples"][id] // args.batch_size)
         train_loader = dataset_partions[id].shuffle(buffer_size=1000).batch(args.batch_size)
         trainF = cinic.train
@@ -237,9 +238,12 @@ def client_fn(cid: str):
         return clientProxy.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedopt":
         return clientOpt.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode == "adabest":
+        return clientAdaBest.CustomNumpyClient(cid, net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode == "fedeve":
+        return clientFedEve.CustomNumpyClient(cid, net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else:
-        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
-    
+        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     
 
 if __name__ =="__main__":
@@ -247,15 +251,19 @@ if __name__ =="__main__":
     fets.make_model_folder(f"./Models/{args.version}")
     
     if args.mode =="fedavg":
-        strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime,evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime,evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedprox":
-        strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num)
+        strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedopt":
-        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.client_num, min_available_clients=args.client_num, min_evaluate_clients=args.client_num, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
+        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
+    elif args.mode == "adabest":
+        pass
+    elif args.mode == "fedeve":
+        pass
     else:
-        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'fedyogi', 'fedadam', 'fedadagrad'].")
+        raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     
     def server_fn(context):
         return fl.server.ServerAppComponents(strategy= strategy, config=fl.server.ServerConfig(args.round))
@@ -264,7 +272,7 @@ if __name__ =="__main__":
         fl.simulation.run_simulation(
      client_app= fl.client.ClientApp(client_fn=client_fn),
      server_app= fl.server.ServerApp(server_fn=server_fn),
-     num_supernodes= args.client_num,
+     num_supernodes= args.numberOfNodes,
      backend_config={"client_resources": {"num_cpus": 1.0 , "num_gpus": 1}},
      verbose_logging=False
     )
@@ -272,7 +280,7 @@ if __name__ =="__main__":
         fl.simulation.run_simulation(
      client_app= fl.client.ClientApp(client_fn=client_fn),
      server_app= fl.server.ServerApp(server_fn=server_fn),
-     num_supernodes= args.client_num,
+     num_supernodes= args.numberOfNodes,
      backend_config={"client_resources": {"num_cpus": 1.0, "num_gpus": 0}},
      verbose_logging=False
     )
