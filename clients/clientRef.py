@@ -34,11 +34,11 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         elif args.clientMode == "fedopt":
             target_source = opt.CustomNumpyClient
         elif args.clientMode == "fedeve":
-            target_source = eve.FedEveClient
+            target_source = eve.CustomNumpyClient
             # FedEve 전용 내부 속성 초기화
             self.v_local = [torch.zeros_like(p, device=self.DEVICE) for p in self.net.parameters()]
         elif args.clientMode == "adabest":
-            target_source = adabest.AdaBestClient
+            target_source = adabest.CustomNumpyClient
             # AdaBest 전용 내부 속성 초기화
             self.h_local = [torch.zeros_like(p, device=self.DEVICE) for p in self.net.parameters()]
         else:

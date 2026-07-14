@@ -137,7 +137,7 @@ class FedRef(flwr.server.strategy.FedAvg):
         corrected_ndarrays = []
         for g, d_g, d_ref in zip(aggregated_ndarrays, delta_theta_g, delta_theta_ref):
             # Regularization 항의 그래디언트: 2 * λ^g * (Δθ^g - Δθ^ref)
-            reg_gradient = 2 * self.args.lda1 * (d_g - d_ref)
+            reg_gradient = 2 * self.args.lda * (d_g - d_ref)
             # 1 step Gradient Descent 보정
             corrected_layer = g - self.args.lr * reg_gradient
             corrected_ndarrays.append(corrected_layer)
@@ -175,12 +175,12 @@ class FedRef(flwr.server.strategy.FedAvg):
         elif self.args.type == "celeba":
             validF = celebaValid
         
-        self.set_parameters(ndarrays)
+        self.set_parameters(self.aggregated_net, ndarrays)
         history = validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
         
         # 파일 저장 경로 처리
         os.makedirs(os.path.join(self.args.result_path, self.args.mode), exist_ok=True)
-        csv_path = os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda1{self.args.lda1*10}_p{self.args.prime}.csv')
+        csv_path = os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
         
         historyframe = pd.DataFrame({k: [v] for k, v in history.items()})
         if server_round != 0 and os.path.exists(csv_path):
@@ -191,9 +191,9 @@ class FedRef(flwr.server.strategy.FedAvg):
             historyframe.to_csv(csv_path, index=False)
             
         return history['loss'], {key: value for key, value in history.items() if key != "loss"}
-    def set_parameters(self, parameters):
+    def set_parameters(self, net, parameters):
         """서버로부터 받은 가중치를 클라이언트 모델에 안전하게 적용합니다."""
-        for old, new in zip(self.net.parameters(), parameters):
+        for old, new in zip(net.parameters(), parameters):
             # 1. torch.Tensor(new) 대신 소문자 torch.tensor(new) 사용 (타입 추론 및 안전성)
             # 2. old.data = ... 방식은 참조를 깨뜨리므로 .copy_()를 사용하여 인플레이스(In-place) 덮어쓰기 수행
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))

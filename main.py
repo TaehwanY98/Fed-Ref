@@ -3,6 +3,8 @@ import server.FedAvgServer as avg
 import server.FedRefServer as ref
 import server.FedProxServer as prox
 import server.FedOptServer as opt
+import server.FedEveServer as eve
+import server.AdaBestSever as adabest
 
 import flwr as fl
 import torch
@@ -259,9 +261,9 @@ if __name__ =="__main__":
     elif args.mode =="fedopt":
         strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
     elif args.mode == "adabest":
-        pass
+        strategy = adabest.AdaBest(net, lossf, validLoader, args,evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode == "fedeve":
-        pass
+        strategy = eve.FedEve(net, lossf, validLoader, args, evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     
