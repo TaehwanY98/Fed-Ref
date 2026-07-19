@@ -69,4 +69,4 @@ For example:
     python3 main.py -r 50 -e 3 -bs 256 -l 1e-5 -udp -1 -t femnist -m fedprox -NON 10 -g --degrade 0.0
 
     #FedRef
-    python3 main.py -r 50 -e 3 -bs 256 -l 1e-5 -udp -1 -t femnist -m fedavg -NON 10 -g --degrade 0.0 --lda 1e-3 --rho 5
+    python3 main.py -r 50 -e 3 -bs 256 -l 1e-5 -udp -1 -t femnist -m fedref -NON 10 -g --degrade 0.0 --lda 1e-3 --rho 5
