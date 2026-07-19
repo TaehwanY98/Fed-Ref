@@ -141,6 +141,8 @@ elif args.type == "femnist":
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
             out = ToPILImage()(out.cpu().detach())
             example["image"] = out
+            if random.random() > float(args.degrade):
+                    example['character'] = random.randint(0, 61)
             return example
         else:
             for i, e in enumerate(example["image"]):
@@ -148,6 +150,8 @@ elif args.type == "femnist":
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
                 out = ToPILImage()(out.cpu().detach())
                 example["image"][i] = out
+                if random.random() > float(args.degrade):
+                    example['character'][i] = random.randint(0, 61)
             return example
         
     Femnist = datasets.load_dataset("flwrlabs/femnist")
@@ -163,6 +167,8 @@ elif args.type == "cinic10":
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
             out = ToPILImage()(out.cpu().detach())
             example["image"] = out
+            if random.random() > float(args.degrade):
+                    example['label'] = random.randint(0, 9)
             return example
         else:
             for i, e in enumerate(example["image"]):
@@ -170,7 +176,9 @@ elif args.type == "cinic10":
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
                 out = ToPILImage()(out.cpu().detach())
                 example["image"][i] = out
-            return example
+                if random.random() > float(args.degrade):
+                    example['label'][i] = random.randint(0, 9)
+        return example
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
     data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)

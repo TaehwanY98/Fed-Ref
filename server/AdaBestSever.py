@@ -35,6 +35,7 @@ class AdaBest(flwr.server.strategy.FedAvg):
         self.prev_global_parameters: Optional[List[np.ndarray]] = None
         # [AdaBest] 클라이언트 그라디언트 제어용 노름 임계치 초깃값 및 모멘텀 계수 beta
         self.clip_norm_threshold = 1.0
+        self.alpha = 0.1
         self.beta = 0.9
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
         
@@ -49,6 +50,8 @@ class AdaBest(flwr.server.strategy.FedAvg):
         
         # 2. [AdaBest 핵심] 서버가 계산한 동적 노름 임계값을 config에 주입하여 전달
         config["clip_norm"] = self.clip_norm_threshold
+        config["alpha"] = self.alpha
+        config["beta"] = self.beta
         
         fit_ins = flwr.common.FitIns(parameters, config)
         
