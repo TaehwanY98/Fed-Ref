@@ -33,7 +33,7 @@ from torch.optim import SGD
 import segmentation_models_pytorch as smp
 import warnings
 import datasets
-
+import copy
 args = parser.Simulationparser()
 fets.set_seeds(args)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -152,7 +152,7 @@ elif args.type == "celeba":
         example["image"] = out
         return example
     Celeba = datasets.load_dataset("flwrlabs/celeba")
-    data_set = Celeba["train"].map(CustomTransform)
+    data_set = Celeba["train"].map(CustomTransform, batch_size=args.batch_size)
     validLoader = Celeba["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": data_set.to_pandas()["celeb_id"].value_counts().sort_index()}
     info["custom_part"] = [info["num_samples"][info["num_samples"].index%16==v].sum() for v in range(0, 16)]
@@ -167,7 +167,7 @@ elif args.type == "femnist":
     data_set = Femnist["train"]
     data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    data_set = data_set["train"].map(CustomTransform)
+    data_set = data_set["train"].map(CustomTransform, batch_size=args.batch_size)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     def CustomTransform(example):
@@ -201,6 +201,7 @@ def set_parameters(net, new_parameters):
         old.data = torch.Tensor(new).view(shape).to(DEVICE)
 
 def client_fn(cid: str):
+    
     if args.type == "fets":
         id = int(cid) % 15
         trainset = Fets2022(client_dirs[id])
@@ -233,17 +234,23 @@ def client_fn(cid: str):
         trainF = office.train
         validF = office.valid
     if args.mode == "fedref":
-        return clientRef.CustomNumpyClient(aggregated_net, train_loader, length, args.epoch, lossf, SGD(aggregated_net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(aggregated_net)
+        return clientRef.CustomNumpyClient(cid, net_instance, train_loader, length, args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedavg":
-        return client.CustomNumpyClient(net, train_loader, length, args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(net)
+        return client.CustomNumpyClient(net_instance, train_loader, length, args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedprox":
-        return clientProxy.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(net)
+        return clientProxy.CustomNumpyClient(net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedopt":
-        return clientOpt.CustomNumpyClient(net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(net)
+        return clientOpt.CustomNumpyClient(net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "adabest":
-        return clientAdaBest.CustomNumpyClient(cid, net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(net)
+        return clientAdaBest.CustomNumpyClient(cid, net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     elif args.mode == "fedeve":
-        return clientFedEve.CustomNumpyClient(cid, net, train_loader, length,args.epoch, lossf, SGD(net.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+        net_instance = copy.deepcopy(net)
+        return clientFedEve.CustomNumpyClient(cid, net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     
