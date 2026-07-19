@@ -35,8 +35,6 @@ class CustomNumpyClient(flwr.client.NumPyClient):
                 ]
             self.lambda_local = GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"]
             
-            # 메서드 동적 주입 (앞서 정의한 확장 스크립트 연결 예시)
-            self.fit = types.MethodType(afedpd_fit_extension, self)
             
         elif args.clientMode == "fedavg":
             import client as avg
