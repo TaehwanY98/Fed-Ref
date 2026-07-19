@@ -54,22 +54,7 @@ focalLoss = smp.losses.FocalLoss(
    gamma=4.5,                   # Focusing parameter for hard-to-classify examples
    normalized=True
 )
-diceLossb = smp.losses.DiceLoss(
-   mode="binary",          # For multi-class segmentation
-   classes=None,               # Compute the loss for all classes
-   log_loss=False,             # Do not use log version of Dice loss
-   from_logits=True,           # Model outputs are raw logits
-   smooth=1e-5,                # A small smoothing factor for stability
-   ignore_index=None,          # Don't ignore any classes
-   eps=1e-7                    # Epsilon for numerical stability
-)
 
-focalLossb = smp.losses.FocalLoss(
-   mode="binary",          # Multi-class segmentation
-   alpha=0.1,                 # class weighting to deal with class imbalance
-   gamma=4.5,                   # Focusing parameter for hard-to-classify examples
-   normalized=True
-)
 class CustomFocalDiceLoss(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -142,46 +127,47 @@ if args.type == "fets":
     else:
         valid_set = Fets2022(args.data_dir, args.degrade)
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
-elif args.type == "shakespeare":
-    pass
-elif args.type == "celeba":
-    def CustomTransform(example):
-        out=ToTensor()(example["image"])
-        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-        out = ToPILImage()(out)
-        example["image"] = out
-        return example
-    Celeba = datasets.load_dataset("flwrlabs/celeba")
-    data_set = Celeba["train"].map(CustomTransform, batch_size=args.batch_size)
-    validLoader = Celeba["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    info = {"num_samples": data_set.to_pandas()["celeb_id"].value_counts().sort_index()}
-    info["custom_part"] = [info["num_samples"][info["num_samples"].index%16==v].sum() for v in range(0, 16)]
+
 elif args.type == "femnist":
     def CustomTransform(example):
-        out=ToTensor()(example["image"])
-        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-        out = ToPILImage()(out)
-        example["image"] = out
-        return example
+        if len(example) ==1:
+            out=ToTensor()(example["image"])
+            out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+            out = ToPILImage()(out)
+            example["image"] = out
+            return example
+        else:
+            for i, e in enumerate(example):
+                out=ToTensor()(e["image"])
+                out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+                out = ToPILImage()(out)
+                example[i]["image"] = out
+            return example
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
     data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    data_set = data_set["train"].map(CustomTransform, batch_size=args.batch_size)
+    data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=4)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
     def CustomTransform(example):
-        out=ToTensor()(example["image"])
-        out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-        out = ToPILImage()(out)
-        example["image"] = out
-        return example
+        if len(example) ==1:
+            out=ToTensor()(example["image"])
+            out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+            out = ToPILImage()(out)
+            example["image"] = out
+            return example
+        else:
+            for i, e in enumerate(example):
+                out=ToTensor()(e["image"])
+                out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
+                out = ToPILImage()(out)
+                example[i]["image"] = out
+            return example
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
-    data_set = CINIC10["train"].map(CustomTransform)
+    data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=4)
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": [9000]*10}
-elif args.type == "office":
-    pass
 
 
 if args.type == "fets":
@@ -194,11 +180,6 @@ elif args.type == "femnist":
     dataset_partions = [data_set.skip(sum(info["num_samples"].values[:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"].values)]
 elif args.type == "cinic10":
     dataset_partions = [data_set.shuffle(args.seed).skip(sum(info["num_samples"][:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.shuffle(args.seed).take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"])]
-
-def set_parameters(net, new_parameters):
-    for old, new in zip(net.parameters(), new_parameters):
-        shape = old.data.size()
-        old.data = torch.Tensor(new).view(shape).to(DEVICE)
 
 def client_fn(cid: str):
     
