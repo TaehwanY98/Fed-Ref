@@ -5,6 +5,7 @@ import server.FedProxServer as prox
 import server.FedOptServer as opt
 import server.FedEveServer as eve
 import server.AdaBestSever as adabest
+import server.AFedPDServer as afedpd
 
 import flwr as fl
 import torch
@@ -27,7 +28,7 @@ from Network.Resnet import *
 from Network.Unet import *
 from Network.Loss import *
 from Network.Mobilenet import *
-from clients import client, clientProxy, clientOpt, clientRef, clientAdaBest, clientFedEve
+from clients import client, clientProxy, clientOpt, clientRef, clientAdaBest, clientFedEve, clientAFedPD
 import os
 from torch.optim import SGD
 import segmentation_models_pytorch as smp
@@ -247,6 +248,9 @@ def client_fn(cid: str):
     elif args.mode == "fedeve":
         net_instance = copy.deepcopy(net)
         return clientFedEve.CustomNumpyClient(cid, net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
+    elif args.mode == "afedpd":
+        net_instance = copy.deepcopy(net)
+        return clientAFedPD.CustomNumpyClient(cid, net_instance, train_loader, length,args.epoch, lossf, SGD(net_instance.parameters(), args.lr), DEVICE, args, trainF, validF).to_client()
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     
@@ -267,6 +271,8 @@ if __name__ =="__main__":
         strategy = adabest.AdaBest(net, lossf, validLoader, args,evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode == "fedeve":
         strategy = eve.FedEve(net, lossf, validLoader, args, evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+    elif args.mode == "afedpd":
+        strategy = afedpd.A_FedPD(net, lossf, validLoader, args, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     

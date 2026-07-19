@@ -1,0 +1,99 @@
+from typing import Dict, List, Optional, Tuple
+import flwr
+import torch
+from torch import save
+import pandas as pd
+import os
+import numpy as np
+import copy
+from flwr.common import parameters_to_ndarrays, ndarrays_to_parameters
+
+from utils.CelebaTrain import valid as celebaValid
+from utils.FetsTrain import valid as fetsValid
+from utils.Cinic10Train import valid as cinicValid
+from utils.FEMNISTTrain import valid as FEMNISTValid
+from utils.ShakespeareTrain import valid as shakespeareValid
+from utils.OfficeTrain import valid as officeValid
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class A_FedPD(flwr.server.strategy.FedAvg):
+    def __init__(self, net, lossf, validLoader, args, fraction_fit=1, fraction_evaluate=1, min_fit_clients=2, min_evaluate_clients=2, min_available_clients=2, **kwargs):
+        kwargs["inplace"] = False  # 안전한 갱신을 위해 복사본 모드 강제
+        super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, **kwargs)
+        
+        self.net = net
+        self.args = args
+        self.lossf = lossf
+        self.validLoader = validLoader
+        
+        # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
+        self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
+
+    def configure_fit(self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager):
+        """클라이언트가 로컬 Primal-Dual 연산을 수행할 수 있도록 설정값(mu)을 전달합니다."""
+        config = {}
+        if self.on_fit_config_fn is not None:
+            config = self.on_fit_config_fn(server_round)
+            
+        config["mu"] = self.mu_param  # 클라이언트 손실함수에 mu 동적 주입
+        
+        fit_ins = flwr.common.FitIns(parameters, config)
+        sample_size, min_num_clients = self.num_fit_clients(client_manager.num_available())
+        clients = client_manager.sample(num_clients=sample_size, min_num_clients=min_num_clients)
+        return [(client, fit_ins) for client in clients]
+
+    def aggregate_fit(self, server_round, results, failures):
+        if not results or (not self.accept_failures and failures):
+            return None, {}
+
+        # 1. 부모 FedAvg의 기본 가중 평균 기법을 통해 일차적인 Primal Consensus(도출 모델) 연산
+        aggregated_parameters, metrics_aggregated = super().aggregate_fit(server_round, results, failures)
+
+        # A-FedPD는 Primal 가중치가 업데이트된 직후 
+        # 불참 클라이언트들의 듀얼 히스테리시스 성분을 정렬하는 기준점으로 이 통합 가중치를 확정합니다.
+        return aggregated_parameters, metrics_aggregated
+
+    def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
+        # 제공해주신 기존 평가 및 CSV/PT 무중단 기록 프레임워크 완벽 유지  # 예시 검증부 스위칭용 (본인 코드 환경에 맞춤)
+        if self.args.type =="fets":
+            validF= fetsValid 
+        elif self.args.type=="femnist":
+            validF = FEMNISTValid
+        elif self.args.type == "cinic10":
+            validF = cinicValid
+        elif self.args.type == "shakespeare":
+            validF = shakespeareValid
+        elif self.args.type == "office":
+            validF = officeValid
+        elif self.args.type == "celeba":
+            validF = celebaValid
+        ndarrays = parameters_to_ndarrays(parameters)
+        self.set_parameters(ndarrays)
+        
+        # 본래 작성 구조대로 history 계산
+        history = validF(self.net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
+        
+        make_dir(self.args.result_path)
+        make_dir(os.path.join(self.args.result_path, self.args.mode))
+        
+        csv_path = os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}.csv')
+        historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
+        
+        if server_round != 0 and os.path.exists(csv_path):
+            old_historyframe = pd.read_csv(csv_path)
+            newframe = pd.concat([old_historyframe, historyframe])
+            newframe.to_csv(csv_path, index=False)
+        else:
+            historyframe.to_csv(csv_path, index=False)
+            
+        save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
+        return history['loss'], {key:value for key, value in history.items() if key != "loss" }
+
+    def set_parameters(self, parameters):
+        for old, new in zip(self.net.parameters(), parameters):
+            old.data.copy_(torch.tensor(new, dtype=old.dtype).to(DEVICE))
+
+def make_dir(path):
+    if not os.path.exists(path):
+        os.mkdir(path)

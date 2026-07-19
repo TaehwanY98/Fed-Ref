@@ -52,12 +52,13 @@ Available Dataset
     
 
 Available FL Strategies
-1. FedAvg
-2. FedProx
-3. FedOpt
+1. FedAvg (fedavg)
+2. FedProx (fedprox)
+3. FedOpt (fedopt)
 4. FedRef (our proposed work.)
-5. Adabest 
-6. FedEve 
+5. Adabest (adabest)
+6. FedEve (fedeve)
+7. A-FedPD (afedpd)
 
 For example:
 
