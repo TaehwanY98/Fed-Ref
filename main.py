@@ -34,6 +34,12 @@ import segmentation_models_pytorch as smp
 import warnings
 import datasets
 import copy
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
+
 args = parser.Simulationparser()
 fets.set_seeds(args)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -129,43 +135,44 @@ if args.type == "fets":
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 
 elif args.type == "femnist":
-    def CustomTransform(example):
-        if len(example) ==1:
+    def CustomTransform(example, rank):
+        if len(example) <= 1:
             out=ToTensor()(example["image"])
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-            out = ToPILImage()(out)
+            out = ToPILImage()(out.cpu().detach())
             example["image"] = out
             return example
         else:
-            for i, e in enumerate(example):
-                out=ToTensor()(e["image"])
+            for i, e in enumerate(example["image"]):
+                out=ToTensor()(e)
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-                out = ToPILImage()(out)
-                example[i]["image"] = out
+                out = ToPILImage()(out.cpu().detach())
+                example["image"][i] = out
             return example
+        
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
     data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=4)
+    data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 elif args.type == "cinic10":
-    def CustomTransform(example):
-        if len(example) ==1:
+    def CustomTransform(example, rank):
+        if len(example) <= 1:
             out=ToTensor()(example["image"])
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-            out = ToPILImage()(out)
+            out = ToPILImage()(out.cpu().detach())
             example["image"] = out
             return example
         else:
-            for i, e in enumerate(example):
-                out=ToTensor()(e["image"])
+            for i, e in enumerate(example["image"]):
+                out=ToTensor()(e)
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
-                out = ToPILImage()(out)
-                example[i]["image"] = out
+                out = ToPILImage()(out.cpu().detach())
+                example["image"][i] = out
             return example
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
-    data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=4)
+    data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": [9000]*10}
 
