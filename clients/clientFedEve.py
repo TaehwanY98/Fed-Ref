@@ -44,8 +44,8 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         self.set_parameters(parameters)
         
         # 2. 하이퍼파라미터 로드
-        mu = config.get("mu", 0.01)       # 로컬 정규화 강도
-        rho = config.get("rho", 0.9)      # 분산 제어 모멘텀 계수
+        mu = config["mu"]      # 로컬 정규화 강도
+        rho = config["rho"]      # 분산 제어 모멘텀 계수
         
         # 3. 글로벌 파라미터 복사 (미분 그래프 완전 제외 및 디바이스 지정 고정)
         global_params = [

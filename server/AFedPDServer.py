@@ -7,7 +7,7 @@ import os
 import numpy as np
 import copy
 from flwr.common import parameters_to_ndarrays, ndarrays_to_parameters
-
+from pprint import pprint
 from utils.CelebaTrain import valid as celebaValid
 from utils.FetsTrain import valid as fetsValid
 from utils.Cinic10Train import valid as cinicValid
@@ -29,7 +29,6 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         
         # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
         self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
-
     def configure_fit(self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager):
         """클라이언트가 로컬 Primal-Dual 연산을 수행할 수 있도록 설정값(mu)을 전달합니다."""
         config = {}
@@ -44,9 +43,11 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         return [(client, fit_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
+        
         if not results or (not self.accept_failures and failures):
             return None, {}
 
+        pprint(vars(self.args))
         # 1. 부모 FedAvg의 기본 가중 평균 기법을 통해 일차적인 Primal Consensus(도출 모델) 연산
         aggregated_parameters, metrics_aggregated = super().aggregate_fit(server_round, results, failures)
 

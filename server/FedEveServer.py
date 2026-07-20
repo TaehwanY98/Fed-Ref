@@ -37,6 +37,21 @@ class FedEve(flwr.server.strategy.FedAvg):
         self.server_lr = getattr(args, 'server_lr', 1.0)  # 서버 스텝 사이즈 (η_s)
         self.momentum_beta = getattr(args, 'momentum_beta', 0.9)  # 모멘텀 계수 (β)
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
+        self.rho_param = getattr(args, "rho_param", 0.9)
+        self.mu_param = getattr(args, "mu_param", 0.01)
+    def configure_fit(self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager):
+        """클라이언트가 로컬 Primal-Dual 연산을 수행할 수 있도록 설정값(mu)을 전달합니다."""
+        config = {}
+        if self.on_fit_config_fn is not None:
+            config = self.on_fit_config_fn(server_round)
+            
+        config["mu"] = self.mu_param  # 클라이언트 손실함수에 mu 동적 주입
+        config["rho"] = self.mu_param
+        
+        fit_ins = flwr.common.FitIns(parameters, config)
+        sample_size, min_num_clients = self.num_fit_clients(client_manager.num_available())
+        clients = client_manager.sample(num_clients=sample_size, min_num_clients=min_num_clients)
+        return [(client, fit_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
         pprint(vars(self.args))
