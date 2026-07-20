@@ -136,24 +136,24 @@ if args.type == "fets":
         validLoader = DataLoader(valid_set, args.batch_size, shuffle=False, collate_fn = lambda x: x)
 
 elif args.type == "femnist":
+    def FlippingAttack(example):
+        for i, e in enumerate(example["image"]):
+            example['character'][i] = torch.randint(low=0, high=61, size=(1,)).cpu().item()
+        return example
+    
     def CustomTransform(example, rank):
         if len(example) <= 1:
             out=ToTensor()(example["image"])
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
             out = ToPILImage()(out.cpu().detach())
             example["image"] = out
-            if random.random() > float(args.degrade):
-                    example['character'] = random.randint(0, 61)
-            return example
         else:
             for i, e in enumerate(example["image"]):
                 out=ToTensor()(e)
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
                 out = ToPILImage()(out.cpu().detach())
                 example["image"][i] = out
-                if random.random() > float(args.degrade):
-                    example['character'][i] = random.randint(0, 61)
-            return example
+        return RandomApply([FlippingAttack], p=args.degrade)(example)
         
     Femnist = datasets.load_dataset("flwrlabs/femnist")
     data_set = Femnist["train"]
@@ -161,25 +161,28 @@ elif args.type == "femnist":
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
+
 elif args.type == "cinic10":
+    
+    def FlippingAttack(example):
+        for i, e in enumerate(example["image"]):
+            example['label'][i] = torch.randint(low=0, high=9, size=(1,)).cpu().item()
+        return example
+    
     def CustomTransform(example, rank):
         if len(example) <= 1:
             out=ToTensor()(example["image"])
             out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
             out = ToPILImage()(out.cpu().detach())
             example["image"] = out
-            if random.random() > float(args.degrade):
-                    example['label'] = random.randint(0, 9)
-            return example
         else:
             for i, e in enumerate(example["image"]):
                 out=ToTensor()(e)
                 out=RandomApply([GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)), GaussianNoise()], p=args.degrade)(out)
                 out = ToPILImage()(out.cpu().detach())
                 example["image"][i] = out
-                if random.random() > float(args.degrade):
-                    example['label'][i] = random.randint(0, 9)
-        return example
+        return RandomApply([FlippingAttack], p=args.degrade)(example)
+    
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
     data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
