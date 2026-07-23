@@ -32,10 +32,13 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
         self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
         self.initial_global_model= copy.deepcopy(net)
+    def initial_global_update(self):
+                self.initial_global_model = copy.deepcopy(self.net)
+
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (self.get_parameters(self.initial_global_model), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)
@@ -60,6 +63,7 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         pprint(vars(self.args))
 
         aggregated_parameters = self.warm_up(results=results)
+        self.initial_global_update()
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -105,7 +109,10 @@ class A_FedPD(flwr.server.strategy.FedAvg):
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(DEVICE))
-
+    def get_parameters(self, net, config={}):
+            """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
+            # 미분 그래프 추적을 끊고(detach), CPU로 이동 후, 안전하게 numpy 배열로 변환
+            return [val.detach().cpu().numpy() for val in net.parameters()]
 def make_dir(path):
     if not os.path.exists(path):
         os.mkdir(path)

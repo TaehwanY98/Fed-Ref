@@ -63,11 +63,14 @@ class FedRef(flwr.server.strategy.FedAvg):
             for l in range(num_layers):
                 ref_model[l] += weight * theta_g[l]
         return ref_model
+    
+    def initial_global_update(self):
+        self.initial_global_model = copy.deepcopy(self.aggregated_net)
 
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (self.get_parameters(self.initial_global_model), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)

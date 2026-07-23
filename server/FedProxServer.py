@@ -30,11 +30,12 @@ class FedProx(flwr.server.strategy.FedProx):
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
         self.initial_global_model= copy.deepcopy(net)
         self.local_random = random.Random(self.args.seed)
-
+    def initial_global_update(self):
+            self.initial_global_model = copy.deepcopy(self.net)
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (self.get_parameters(self.initial_global_model), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)
@@ -47,6 +48,9 @@ class FedProx(flwr.server.strategy.FedProx):
         pprint(vars(self.args))
 
         aggregated_parameters = self.warm_up(results=results)
+
+        self.initial_global_update()
+        
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -87,10 +91,10 @@ class FedProx(flwr.server.strategy.FedProx):
             # 2. old.data = ... 방식은 참조를 깨뜨리므로 .copy_()를 사용하여 인플레이스(In-place) 덮어쓰기 수행
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))
 
-    def get_parameters(self, config={}):
-        """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
-        # 미분 그래프 추적을 끊고(detach), CPU로 이동 후, 안전하게 numpy 배열로 변환
-        return [val.detach().cpu().numpy() for val in self.net.parameters()]
+    def get_parameters(self, net, config={}):
+            """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
+            # 미분 그래프 추적을 끊고(detach), CPU로 이동 후, 안전하게 numpy 배열로 변환
+            return [val.detach().cpu().numpy() for val in net.parameters()]
 
 
 def make_dir(path):
