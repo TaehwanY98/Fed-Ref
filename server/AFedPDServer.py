@@ -71,40 +71,39 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         return aggregated_parameters, metrics_aggregated
 
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
-        # 제공해주신 기존 평가 및 CSV/PT 무중단 기록 프레임워크 완벽 유지  # 예시 검증부 스위칭용 (본인 코드 환경에 맞춤)
-        if self.args.type =="fets":
-            validF= fetsValid 
-        elif self.args.type=="femnist":
-            validF = FEMNISTValid
-        elif self.args.type == "cinic10":
-            validF = cinicValid
-        elif self.args.type == "shakespeare":
-            validF = shakespeareValid
-        elif self.args.type == "office":
-            validF = officeValid
-        elif self.args.type == "celeba":
-            validF = celebaValid
-        ndarrays = parameters_to_ndarrays(parameters)
-        self.set_parameters(ndarrays)
-        
-        # 본래 작성 구조대로 history 계산
-        history = validF(self.net, self.validLoader, 0, self.lossf.to(DEVICE), DEVICE, True)
-        
-        make_dir(self.args.result_path)
-        make_dir(os.path.join(self.args.result_path, self.args.mode))
-        
-        csv_path = os.path.join(self.args.result_path, self.args.mode, f'{self.args.mode}_{self.args.type}.csv')
-        historyframe = pd.DataFrame({k:[v] for k, v in history.items()})
-        
-        if server_round != 0 and os.path.exists(csv_path):
-            old_historyframe = pd.read_csv(csv_path)
-            newframe = pd.concat([old_historyframe, historyframe])
-            newframe.to_csv(csv_path, index=False)
-        else:
-            historyframe.to_csv(csv_path, index=False)
+            # 기존 evaluate 로직 유지 (타입별 밸리데이션 및 csv 저장)
+            ndarrays = parameters_to_ndarrays(parameters)
             
-        save(self.net.state_dict(), f"./Models/{self.args.version}/net.pt")
-        return history['loss'], {key:value for key, value in history.items() if key != "loss" }
+            # 패키지 내 함수 세팅 (사용자 정의 함수 구현체 필수)
+            if self.args.type =="fets":
+                validF= fetsValid 
+            elif self.args.type=="femnist":
+                validF = FEMNISTValid
+            elif self.args.type == "cinic10":
+                validF = cinicValid
+            elif self.args.type == "shakespeare":
+                validF = shakespeareValid
+            elif self.args.type == "office":
+                validF = officeValid
+            elif self.args.type == "celeba":
+                validF = celebaValid
+            
+            self.set_parameters(self.aggregated_net, ndarrays)
+            history = validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
+            
+            # 파일 저장 경로 처리
+            os.makedirs(os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}"), exist_ok=True)
+            csv_path = os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
+            
+            historyframe = pd.DataFrame({k: [v] for k, v in history.items()})
+            if server_round != 0 and os.path.exists(csv_path):
+                old_historyframe = pd.read_csv(csv_path)
+                newframe = pd.concat([old_historyframe, historyframe])
+                newframe.to_csv(csv_path, index=False)
+            else:
+                historyframe.to_csv(csv_path, index=False)
+                
+            return history['loss'], {key: value for key, value in history.items() if key != "loss"}
 
     def set_parameters(self, parameters):
         for old, new in zip(self.net.parameters(), parameters):
