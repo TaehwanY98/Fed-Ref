@@ -13,7 +13,6 @@ import pandas as pd
 import os
 from flwr.common import (
     parameters_to_ndarrays,
-    aggre
 )
 from pprint import pprint
 import copy
@@ -45,12 +44,12 @@ class FedProx(flwr.server.strategy.FedProx):
         
         pprint(vars(self.args))
 
-        aggregated_parameter = self.warm_up(results=results)
+        aggregated_parameters = self.warm_up(results=results)
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-        return aggregated_parameter, metrics_aggregated
+        return aggregated_parameters, metrics_aggregated
     
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
