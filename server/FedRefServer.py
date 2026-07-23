@@ -98,7 +98,8 @@ class FedRef(flwr.server.strategy.FedAvg):
 
         # 2. 기본 FedAvg 결합 수행 (θ_{r+1}^g)
         aggregated_ndarrays = self.warm_up(results)
-
+        self.initial_global_update()
+        
         # 3. 웜업 페이즈 처리 (History 윈도우 p 채우기)
         if server_round <= self.p:
             self.global_history.append(copy.deepcopy(aggregated_ndarrays))
