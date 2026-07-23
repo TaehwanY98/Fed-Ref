@@ -16,6 +16,7 @@ from utils.ShakespeareTrain import valid as shakespeareValid
 from utils.OfficeTrain import valid as officeValid
 import copy
 from flwr.server.strategy.fedavg import aggregate
+import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class A_FedPD(flwr.server.strategy.FedAvg):
@@ -27,14 +28,14 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         self.args = args
         self.lossf = lossf
         self.validLoader = validLoader
-        
+        self.local_random = random.Random(self.args.seed)
         # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
         self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
         self.initial_global_model= copy.deepcopy(net)
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)

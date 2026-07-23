@@ -20,6 +20,7 @@ from flwr.common import (
 from pprint import pprint
 import copy
 from flwr.server.strategy.fedavg import aggregate
+import random
 class FedEve(flwr.server.strategy.FedAvg):
     def __init__(self, net, lossf, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None):
         # 복사본 기반 연산을 안전하게 수행하기 위해 inplace=False 강제 설정
@@ -29,6 +30,7 @@ class FedEve(flwr.server.strategy.FedAvg):
         self.lossf = lossf
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
+        self.local_random = random.Random(self.args.seed)
         
         # [FedEve] Period Drift와 Client Drift를 상쇄하기 위한 서버 제어 변수
         self.v_server: Optional[List[np.ndarray]] = None  # 전역 모멘텀/예측 벡터 (Predict Vector)
@@ -44,7 +46,7 @@ class FedEve(flwr.server.strategy.FedAvg):
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)

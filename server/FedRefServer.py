@@ -21,6 +21,7 @@ from utils.ShakespeareTrain import valid as shakespeareValid
 from utils.OfficeTrain import valid as officeValid
 from pprint import pprint
 import copy
+import random
 
 class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net: nn.Module, aggregated_net: nn.Module, lossf, validLoader, args, p: int = 2, **kwargs):
@@ -39,7 +40,7 @@ class FedRef(flwr.server.strategy.FedAvg):
         self.global_history: List[List[np.ndarray]] = []
         # 직전 라운드의 가중 평균 글로벌 손실값 저장
         self.prev_global_loss: Optional[float] = None
-        
+        self.local_random = random.Random(self.args.seed)
         # 최초 reference 파라미터 초기화
         self.theta0_ref: Optional[List[np.ndarray]] = None
         self.theta0_agg: Optional[List[np.ndarray]] = None
@@ -66,7 +67,7 @@ class FedRef(flwr.server.strategy.FedAvg):
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not self.local_random.random() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)
