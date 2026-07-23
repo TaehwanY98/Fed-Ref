@@ -15,8 +15,8 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 from pprint import pprint
-
-
+import copy
+from flwr.server.strategy.fedavg import aggregate
 class FedAvg(flwr.server.strategy.FedAvg):
     def __init__(self, net, lossf, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None, inplace = True):
         super().__init__(fraction_fit=fraction_fit, fraction_evaluate=fraction_evaluate, min_fit_clients=min_fit_clients, min_evaluate_clients=min_evaluate_clients, min_available_clients=min_available_clients, evaluate_fn=evaluate_fn, on_fit_config_fn=on_fit_config_fn, on_evaluate_config_fn=on_evaluate_config_fn, accept_failures=accept_failures, initial_parameters=initial_parameters, fit_metrics_aggregation_fn=fit_metrics_aggregation_fn, evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn, inplace=inplace)
@@ -26,10 +26,27 @@ class FedAvg(flwr.server.strategy.FedAvg):
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
+        self.initial_global_model= copy.deepcopy(net)
+    def warm_up(self, results):
+        """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
+        ]
+        aggregated_ndarrays = aggregate(weights_results)
+        return aggregated_ndarrays
     def aggregate_fit(self, server_round, results, failures):
-        pprint(vars(self.args))  
-        # 디버깅용: 초기화 시 인자 출력
-        return super().aggregate_fit(server_round, results, failures)
+        if not results or (not self.accept_failures and failures):
+            return None, {}
+        
+        pprint(vars(self.args))
+
+        aggregated_parameters = self.warm_up(results=results)
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+        return aggregated_parameters, metrics_aggregated
     def evaluate(self, server_round: int, parameters)-> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
         parameters = parameters_to_ndarrays(parameters)
         if self.args.type =="fets":

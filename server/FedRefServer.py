@@ -20,7 +20,7 @@ from utils.FEMNISTTrain import valid as FEMNISTValid
 from utils.ShakespeareTrain import valid as shakespeareValid
 from utils.OfficeTrain import valid as officeValid
 from pprint import pprint
-
+import copy
 
 class FedRef(flwr.server.strategy.FedAvg):
     def __init__(self, ref_net: nn.Module, aggregated_net: nn.Module, lossf, validLoader, args, p: int = 2, **kwargs):
@@ -34,7 +34,7 @@ class FedRef(flwr.server.strategy.FedAvg):
         self.validLoader = validLoader
         self.args = args
         self.p = p
-        
+        self.initial_global_model= copy.deepcopy(aggregated_net)
         # 과거 p개의 글로벌 모델 파라미터를 담을 윈도우 리스트 (최신 p개 유지)
         self.global_history: List[List[np.ndarray]] = []
         # 직전 라운드의 가중 평균 글로벌 손실값 저장
@@ -66,8 +66,8 @@ class FedRef(flwr.server.strategy.FedAvg):
     def warm_up(self, results):
         """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
         weights_results = [
-            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
-            for _, fit_res in results
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)
         return aggregated_ndarrays
@@ -198,7 +198,7 @@ class FedRef(flwr.server.strategy.FedAvg):
             # 2. old.data = ... 방식은 참조를 깨뜨리므로 .copy_()를 사용하여 인플레이스(In-place) 덮어쓰기 수행
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))
 
-    def get_parameters(self, config={}):
+    def get_parameters(self, net, config={}):
         """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
         # 미분 그래프 추적을 끊고(detach), CPU로 이동 후, 안전하게 numpy 배열로 변환
-        return [val.detach().cpu().numpy() for val in self.net.parameters()]
+        return [val.detach().cpu().numpy() for val in net.parameters()]

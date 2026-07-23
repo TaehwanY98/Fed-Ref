@@ -18,7 +18,8 @@ from flwr.common import (
     ndarrays_to_parameters,
 )
 from pprint import pprint
-
+import copy
+from flwr.server.strategy.fedavg import aggregate
 class FedEve(flwr.server.strategy.FedAvg):
     def __init__(self, net, lossf, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None):
         # 복사본 기반 연산을 안전하게 수행하기 위해 inplace=False 강제 설정
@@ -39,6 +40,15 @@ class FedEve(flwr.server.strategy.FedAvg):
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
         self.rho_param = getattr(args, "rho_param", 0.9)
         self.mu_param = getattr(args, "mu_param", 0.01)
+        self.initial_global_model= copy.deepcopy(net)
+    def warm_up(self, results):
+        """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
+        ]
+        aggregated_ndarrays = aggregate(weights_results)
+        return aggregated_ndarrays
     def configure_fit(self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager):
         """클라이언트가 로컬 Primal-Dual 연산을 수행할 수 있도록 설정값(mu)을 전달합니다."""
         config = {}
@@ -65,7 +75,11 @@ class FedEve(flwr.server.strategy.FedAvg):
             self.v_server = [np.zeros_like(layer) for layer in first_client_param]
 
         # 2. 부모 클래스의 FedAvg 결합 알고리즘을 활용하여 1차 관찰 가중치(Observed Consensus) 계산
-        aggregated_parameters, metrics_aggregated = super().aggregate_fit(server_round, results, failures)
+        aggregated_parameters = self.warm_up(results=results)
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
 
         if aggregated_parameters is not None:
             observed_ndarrays = parameters_to_ndarrays(aggregated_parameters)

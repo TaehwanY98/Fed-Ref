@@ -18,8 +18,8 @@ from flwr.common import (
     ndarrays_to_parameters,
 )
 from pprint import pprint
-
-
+import copy
+from flwr.server.strategy.fedavg import aggregate
 
 class AdaBest(flwr.server.strategy.FedAvg):
     def __init__(self, net, lossf, validLoader, args, fraction_fit = 1, fraction_evaluate = 1, min_fit_clients = 2, min_evaluate_clients = 2, min_available_clients = 2, evaluate_fn = None, on_fit_config_fn = None, on_evaluate_config_fn = None, accept_failures = True, initial_parameters = None, fit_metrics_aggregation_fn = None, evaluate_metrics_aggregation_fn = None):
@@ -30,7 +30,7 @@ class AdaBest(flwr.server.strategy.FedAvg):
         self.lossf = lossf
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
-        
+        self.initial_global_model= copy.deepcopy(net)
         # [AdaBest] 직전 라운드의 글로벌 가중치를 추적하기 위한 변수
         self.prev_global_parameters: Optional[List[np.ndarray]] = None
         # [AdaBest] 클라이언트 그라디언트 제어용 노름 임계치 초깃값 및 모멘텀 계수 beta
@@ -38,7 +38,14 @@ class AdaBest(flwr.server.strategy.FedAvg):
         self.alpha = 0.1
         self.beta = 0.9
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
-        
+    def warm_up(self, results):
+        """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
+        ]
+        aggregated_ndarrays = aggregate(weights_results)
+        return aggregated_ndarrays    
     def configure_fit(
         self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager
     ) -> List[Tuple[flwr.server.client_proxy.ClientProxy, flwr.common.FitIns]]:
@@ -92,7 +99,11 @@ class AdaBest(flwr.server.strategy.FedAvg):
         avg_drift_norm = total_drift_norm / max(len(results), 1)
 
         # 4. 부모 클래스의 FedAvg 결합 알고리즘을 활용하여 새로운 글로벌 가중치 계산
-        aggregated_parameters, metrics_aggregated = super().aggregate_fit(server_round, results, failures)
+        aggregated_parameters = self.warm_up(results=results)
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
 
         if aggregated_parameters is not None:
             aggregated_ndarrays = parameters_to_ndarrays(aggregated_parameters)

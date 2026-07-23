@@ -14,7 +14,8 @@ from utils.Cinic10Train import valid as cinicValid
 from utils.FEMNISTTrain import valid as FEMNISTValid
 from utils.ShakespeareTrain import valid as shakespeareValid
 from utils.OfficeTrain import valid as officeValid
-
+import copy
+from flwr.server.strategy.fedavg import aggregate
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class A_FedPD(flwr.server.strategy.FedAvg):
@@ -29,6 +30,15 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         
         # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
         self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
+        self.initial_global_model= copy.deepcopy(net)
+    def warm_up(self, results):
+        """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
+        ]
+        aggregated_ndarrays = aggregate(weights_results)
+        return aggregated_ndarrays
     def configure_fit(self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager):
         """클라이언트가 로컬 Primal-Dual 연산을 수행할 수 있도록 설정값(mu)을 전달합니다."""
         config = {}
@@ -43,16 +53,16 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         return [(client, fit_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
-        
         if not results or (not self.accept_failures and failures):
             return None, {}
-
+        
         pprint(vars(self.args))
-        # 1. 부모 FedAvg의 기본 가중 평균 기법을 통해 일차적인 Primal Consensus(도출 모델) 연산
-        aggregated_parameters, metrics_aggregated = super().aggregate_fit(server_round, results, failures)
 
-        # A-FedPD는 Primal 가중치가 업데이트된 직후 
-        # 불참 클라이언트들의 듀얼 히스테리시스 성분을 정렬하는 기준점으로 이 통합 가중치를 확정합니다.
+        aggregated_parameters = self.warm_up(results=results)
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
         return aggregated_parameters, metrics_aggregated
 
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:

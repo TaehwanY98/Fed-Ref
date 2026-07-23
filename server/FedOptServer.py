@@ -21,9 +21,9 @@ from flwr.common import (
     ndarrays_to_parameters,
     FitIns
 )
-
+import copy
 from typing import Callable, Optional
-
+from flwr.server.strategy.fedavg import aggregate
 
 class FedOpt(flwr.server.strategy.FedOpt):
     def __init__(self, net, lossf, validLoader, args, fraction_fit: float = 1.0,
@@ -76,6 +76,15 @@ class FedOpt(flwr.server.strategy.FedOpt):
         self.validLoader = validLoader
         self.evaluate_fn = self.evaluate_fn
         self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
+        self.initial_global_model= copy.deepcopy(net)
+    def warm_up(self, results):
+        """웜업 기간 또는 UDP 조건 미충족 시 수행되는 기본 FedAvg 구조"""
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples) if not torch.rand(size=1).item() < self.args.degrade else (parameters_to_ndarrays(self.get_parameters(self.initial_global_model)), fit_res.num_examples)
+            for _, fit_res in results 
+        ]
+        aggregated_ndarrays = aggregate(weights_results)
+        return aggregated_ndarrays
     def aggregate_fit(self, server_round, results, failures):
         pprint(vars(self.args))
         return super().aggregate_fit(server_round, results, failures)

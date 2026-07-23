@@ -159,7 +159,8 @@ elif args.type == "femnist":
     data_set = Femnist["train"]
     data_set = data_set.train_test_split(test_size=0.1, seed=args.seed)
     validLoader = data_set["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
-    data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
+    # data_set = data_set["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
+    data_set = data_set["train"]
     info = {"num_samples": data_set.to_pandas()["hsf_id"].value_counts().sort_index()}
 
 elif args.type == "cinic10":
@@ -184,7 +185,8 @@ elif args.type == "cinic10":
         return RandomApply([FlippingAttack], p=args.degrade)(example)
     
     CINIC10 = datasets.load_dataset("flwrlabs/cinic10")
-    data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
+    # data_set = CINIC10["train"].map(CustomTransform, batched=True, batch_size=args.batch_size, num_proc=1, with_rank=True)
+    data_set = CINIC10["train"]
     validLoader = CINIC10["test"].shuffle(args.seed).to_iterable_dataset().batch(args.batch_size)
     info = {"num_samples": [9000]*10}
 
@@ -201,7 +203,9 @@ elif args.type == "cinic10":
     dataset_partions = [data_set.shuffle(args.seed).skip(sum(info["num_samples"][:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.shuffle(args.seed).take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"])]
 
 def client_fn(cid: str):
-    
+    if torch.rand(size=1).item() < args.degrade:
+        learning_rates = [1e-2, 1e-3, 1e-4, 9e-6, 4e-6, 1e-6]
+        args.lr = learning_rates[torch.randint(0, len(learning_rates)-1, size=1).item()]
     if args.type == "fets":
         id = int(cid) % 15
         trainset = Fets2022(client_dirs[id])
