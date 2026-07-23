@@ -202,10 +202,12 @@ elif args.type == "femnist":
 elif args.type == "cinic10":
     dataset_partions = [data_set.shuffle(args.seed).skip(sum(info["num_samples"][:idx])).take(id).to_iterable_dataset() if idx!=0 else data_set.shuffle(args.seed).take(id).to_iterable_dataset() for idx, id in enumerate(info["num_samples"])]
 
+global_random = random.Random(args.seed)
+
 def client_fn(cid: str):
-    if torch.rand(size=1).item() < args.degrade:
+    if global_random.random() < args.degrade:
         learning_rates = [1e-2, 1e-3, 1e-4, 9e-6, 4e-6, 1e-6]
-        args.lr = learning_rates[torch.randint(0, len(learning_rates)-1, size=1).item()]
+        args.lr = learning_rates[global_random.randint(0, 5)]
     if args.type == "fets":
         id = int(cid) % 15
         trainset = Fets2022(client_dirs[id])
