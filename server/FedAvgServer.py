@@ -86,9 +86,9 @@ class FedAvg(flwr.server.strategy.FedAvg):
                 historyframe.to_csv(csv_path, index=False)
                 
             return history['loss'], {key: value for key, value in history.items() if key != "loss"}
-    def set_parameters(self, parameters):
+    def set_parameters(self, net, parameters):
         """서버로부터 받은 가중치를 클라이언트 모델에 안전하게 적용합니다."""
-        for old, new in zip(self.net.parameters(), parameters):
+        for old, new in zip(net.parameters(), parameters):
             # 1. torch.Tensor(new) 대신 소문자 torch.tensor(new) 사용 (타입 추론 및 안전성)
             # 2. old.data = ... 방식은 참조를 깨뜨리므로 .copy_()를 사용하여 인플레이스(In-place) 덮어쓰기 수행
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))

@@ -158,8 +158,8 @@ class AdaBest(flwr.server.strategy.FedAvg):
                 
             return history['loss'], {key: value for key, value in history.items() if key != "loss"}
 
-    def set_parameters(self, parameters):
-        for old, new in zip(self.net.parameters(), parameters):
+    def set_parameters(self, net, parameters):
+        for old, new in zip(net.parameters(), parameters):
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(self.DEVICE))
 
     def get_parameters(self, net, config={}):

@@ -105,8 +105,8 @@ class A_FedPD(flwr.server.strategy.FedAvg):
                 
             return history['loss'], {key: value for key, value in history.items() if key != "loss"}
 
-    def set_parameters(self, parameters):
-        for old, new in zip(self.net.parameters(), parameters):
+    def set_parameters(self, net , parameters):
+        for old, new in zip(net.parameters(), parameters):
             old.data.copy_(torch.tensor(new, dtype=old.dtype).to(DEVICE))
     def get_parameters(self, net, config={}):
             """현재 클라이언트 모델의 가중치를 NumPy 배열 리스트로 변환하여 반환합니다."""
