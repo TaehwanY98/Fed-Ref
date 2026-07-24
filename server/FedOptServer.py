@@ -101,7 +101,7 @@ class FedOpt(flwr.server.strategy.FedOpt):
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-        return aggregated_parameters, metrics_aggregated
+        return ndarrays_to_parameters(aggregated_parameters), metrics_aggregated
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
             # 기존 evaluate 로직 유지 (타입별 밸리데이션 및 csv 저장)
             ndarrays = parameters_to_ndarrays(parameters)

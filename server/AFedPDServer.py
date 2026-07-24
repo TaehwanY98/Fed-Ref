@@ -18,7 +18,7 @@ import copy
 from flwr.server.strategy.fedavg import aggregate
 import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+from flwr.common import ndarrays_to_parameters
 class A_FedPD(flwr.server.strategy.FedAvg):
     def __init__(self, net, lossf, validLoader, args, fraction_fit=1, fraction_evaluate=1, min_fit_clients=2, min_evaluate_clients=2, min_available_clients=2, **kwargs):
         kwargs["inplace"] = False  # 안전한 갱신을 위해 복사본 모드 강제
@@ -68,7 +68,7 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
-        return aggregated_parameters, metrics_aggregated
+        return ndarrays_to_parameters(aggregated_parameters), metrics_aggregated
 
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
             # 기존 evaluate 로직 유지 (타입별 밸리데이션 및 csv 저장)
