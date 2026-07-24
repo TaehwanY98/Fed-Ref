@@ -75,8 +75,8 @@ class FedProx(flwr.server.strategy.FedProx):
             elif self.args.type == "celeba":
                 validF = celebaValid
             
-            self.set_parameters(self.aggregated_net, ndarrays)
-            history = validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
+            self.set_parameters(self.net, ndarrays)
+            history = validF(self.net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
             
             # 파일 저장 경로 처리
             os.makedirs(os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}"), exist_ok=True)
