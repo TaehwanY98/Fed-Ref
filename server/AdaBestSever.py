@@ -50,7 +50,7 @@ class AdaBest(flwr.server.strategy.FedAvg):
             for _, fit_res in results 
         ]
         aggregated_ndarrays = aggregate(weights_results)
-        return aggregated_ndarrays    
+        return ndarrays_to_parameters(aggregated_ndarrays)    
     def configure_fit(
         self, server_round: int, parameters: flwr.common.Parameters, client_manager: flwr.server.client_manager.ClientManager
     ) -> List[Tuple[flwr.server.client_proxy.ClientProxy, flwr.common.FitIns]]:
@@ -121,7 +121,7 @@ class AdaBest(flwr.server.strategy.FedAvg):
             # 6. 다음 차분 연산을 위해 현재 글로벌 가중치 백업
             self.prev_global_parameters = copy.deepcopy(aggregated_ndarrays)
 
-        return ndarrays_to_parameters(aggregated_parameters), metrics_aggregated
+        return aggregated_parameters, metrics_aggregated
 
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
             # 기존 evaluate 로직 유지 (타입별 밸리데이션 및 csv 저장)

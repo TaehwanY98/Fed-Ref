@@ -114,7 +114,7 @@ class FedEve(flwr.server.strategy.FedAvg):
             # 최종 연산 결과를 Flower 파라미터 타입으로 재변환
             aggregated_parameters = ndarrays_to_parameters(corrected_ndarrays)
 
-        return ndarrays_to_parameters(aggregated_parameters), metrics_aggregated
+        return aggregated_parameters, metrics_aggregated
 
     def evaluate(self, server_round: int, parameters) -> Optional[Tuple[float, Dict[str, flwr.common.Scalar]]]:
             # 기존 evaluate 로직 유지 (타입별 밸리데이션 및 csv 저장)
