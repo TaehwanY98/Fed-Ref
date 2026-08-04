@@ -32,6 +32,7 @@ class A_FedPD(flwr.server.strategy.FedAvg):
         # [A-FedPD] 가상 듀얼 업데이트 및 전역 드리프트 제어를 위한 하이퍼파라미터
         self.mu_param = getattr(args, 'mu_param', 0.1)  # 클라이언트 정규화와 매핑되는 글로벌 mu
         self.initial_global_model= copy.deepcopy(net)
+        self.DEVICE = torch.device("cuda" if torch.cuda.is_available() and args.gpu else "cpu")
     def initial_global_update(self):
                 self.initial_global_model = copy.deepcopy(self.net)
 
