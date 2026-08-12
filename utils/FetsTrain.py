@@ -107,7 +107,7 @@ class CustomFocalDiceLoss(nn.Module):
 
 def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     net.eval()
-    Dicenary = {'mDice':0, 'mHF95':0, "mIOU":0}
+    Dicenary = {'mDice':0, 'mHF95':0, "mIoU":0}
     length = len(valid_loader) 
     losses = 0
     dicef= diceLoss.to(DEVICE)

@@ -81,6 +81,8 @@ class FedEve(flwr.server.strategy.FedAvg):
 
         self.initial_global_update()
 
+        aggregated_parameters = ndarrays_to_parameters(aggregated_parameters)
+        
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]

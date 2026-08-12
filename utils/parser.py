@@ -30,9 +30,9 @@ def Simulationparser():
     parser.add_argument("-d", "--data-dir", type=str, default=None)
     parser.add_argument("-cd", "--client-dir", type=str, default=None)
     
-    parser.add_argument("--lda", type=float, default=0.1)
+    parser.add_argument("--lda", type=float, default=0.01)
     parser.add_argument("--delta", type=float, default=0.0)
-    parser.add_argument("-p", "--prime", type=int, default=2)
+    parser.add_argument("-p", "--prime", type=int, default=4)
     parser.add_argument("-cm", "--clientMode", type=str, default="fedavg")
 
     # 3. 단 한 번만 파싱을 수행합니다.
