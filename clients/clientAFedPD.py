@@ -27,19 +27,14 @@ class CustomNumpyClient(flwr.client.NumPyClient):
             GLOBAL_CLIENT_HISTORIES[self.cid] = {}
 
         # 1. args.clientMode 조건 분기
-        if args.clientMode == "afedpd":
+        
             # A-FedPD 듀얼 변수(λ) 복원 또는 최초 영행렬 초기화
-            if "lambda_local" not in GLOBAL_CLIENT_HISTORIES[self.cid]:
-                GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"] = [
-                    torch.zeros_like(p, device=self.DEVICE, requires_grad=False) for p in self.net.parameters()
-                ]
-            self.lambda_local = GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"]
+        if "lambda_local" not in GLOBAL_CLIENT_HISTORIES[self.cid]:
+            GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"] = [
+                torch.zeros_like(p, device=self.DEVICE, requires_grad=False) for p in self.net.parameters()
+            ]
+        self.lambda_local = GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"]
             
-            
-        elif args.clientMode == "fedavg":
-            import client as avg
-            self.fit = types.MethodType(avg.CustomNumpyClient.fit, self)
-        # ... 타 알고리즘 생략 ...
 
     def fit(self, parameters, config={}):
         """A-FedPD 알고리즘의 Primal-Dual 로컬 최적화 단계"""

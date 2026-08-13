@@ -28,6 +28,9 @@ __Unbounded Drift Penalty 40%__
 __Unbounded Drift Penalty 80%__
 <img src="./res/femnist/degrade0.8/output.png" alt="In FEMNIST, model updates performances" width="auto"/>
 
+__Unbounded Drift Penalty 80%__: Ablation Study
+<img src="./res/femnist/ablation/output.png" alt="Ablation Study in FEMNIST" width="auto"/>
+
 #### CINIC-10:
 will be updated
 

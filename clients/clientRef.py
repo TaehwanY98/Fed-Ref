@@ -7,6 +7,7 @@ import clientProxy as prox
 import clientOpt as opt
 import clientFedEve as eve
 import clientAdaBest as adabest
+import clientAFedPD as afedpd
 # 라운드가 바뀌어 클라이언트 인스턴스가 초기화되어도 상태를 기억하기 위한 저장소
 GLOBAL_CLIENT_HISTORIES = {}
 import flwr 
@@ -71,6 +72,18 @@ class CustomNumpyClient(flwr.client.NumPyClient):
                     torch.zeros_like(p, device=self.DEVICE, requires_grad=False) for p in self.net.parameters()
                 ]
             self.h_local = GLOBAL_CLIENT_HISTORIES[self.cid]["h_local"]
+        elif args.clientMode == "afedpd":
+            target_class = afedpd.CustomNumpyClient
+            # 글로벌 저장소 공간 확보
+            if self.cid not in GLOBAL_CLIENT_HISTORIES:
+                GLOBAL_CLIENT_HISTORIES[self.cid] = {}
+            # 1. args.clientMode 조건 분기
+            # A-FedPD 듀얼 변수(λ) 복원 또는 최초 영행렬 초기화
+            if "lambda_local" not in GLOBAL_CLIENT_HISTORIES[self.cid]:
+                GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"] = [
+                    torch.zeros_like(p, device=self.DEVICE, requires_grad=False) for p in self.net.parameters()
+                ]
+            self.lambda_local = GLOBAL_CLIENT_HISTORIES[self.cid]["lambda_local"]
         else:
             raise ValueError(f"지원하지 않는 clientMode입니다: {args.clientMode}")
 
