@@ -9,3 +9,4 @@ logs.log
 token.txt
 .vscode
 run.py
+run.sh

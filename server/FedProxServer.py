@@ -80,8 +80,8 @@ class FedProx(flwr.server.strategy.FedProx):
             history = validF(self.net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
             
             # 파일 저장 경로 처리
-            os.makedirs(os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", self.args.seed), exist_ok=True)
-            csv_path = os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", self.args.seed, f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
+            os.makedirs(os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", str(self.args.seed)), exist_ok=True)
+            csv_path = os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", str(self.args.seed), f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
             
             historyframe = pd.DataFrame({k: [v] for k, v in history.items()})
             if server_round != 0 and os.path.exists(csv_path):
