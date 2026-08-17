@@ -70,7 +70,7 @@ class CustomFocalDiceLoss(nn.Module):
     
 if args.mode !="fedref":
     if args.type == "fets":
-        net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
+        net = Custom3DUnet(1, 5, False, f_maps=4, layer_order="gcr", num_groups=4)
     if args.type == "shakespeare":
         net = ResNet(outdim=10)
     if args.type == "office":
@@ -85,9 +85,9 @@ if args.mode !="fedref":
     
 elif args.mode =="fedref":
     if args.type == "fets":
-        aggregated_net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
+        aggregated_net = Custom3DUnet(1, 5, False, f_maps=4, layer_order="gcr", num_groups=4)
         aggregated_net.to(DEVICE)
-        ref_net = Custom3DUnet(1, 4, False, f_maps=4, layer_order="gcr", num_groups=4)
+        ref_net = Custom3DUnet(1, 5, False, f_maps=4, layer_order="gcr", num_groups=4)
         ref_net.to(DEVICE)
     elif args.type == "shakespeare":
         aggregated_net = ResNet(outdim=7)

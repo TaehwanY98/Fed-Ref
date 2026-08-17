@@ -31,7 +31,6 @@ class Fets2022(object):
                 
         x = self.OpenFile(xpath, self.transform)        
         y = self.OpenFile(ypath, self.transform)
-        y[y==4] = 3
         
         ret={
             "x" : torch.Tensor(x),
@@ -41,14 +40,6 @@ class Fets2022(object):
     
     def OpenFile(self, path, transform=0.0):
         img = sitk.ReadImage(path, sitk.sitkFloat32)
-        if transform > random.randint(100)/100:
-            blur_filter = sitk.DiscreteGaussianImageFilter()
-            noise_filter = sitk.AdditiveGaussianNoiseImageFilter()
-            blur_filter.SetVariance(2.0)
-            noise_filter.SetMean(0.0)
-            noise_filter.SetStandardDeviation(20.0)
-            img = blur_filter.Execute(img)
-            img = noise_filter.Execute(img)
         return sitk.GetArrayFromImage(img)
             
     def __len__(self) :

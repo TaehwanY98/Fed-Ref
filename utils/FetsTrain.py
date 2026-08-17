@@ -111,7 +111,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
     length = len(valid_loader) 
     losses = 0
     dicef= diceLoss.to(DEVICE)
-    hf95f = CustomHF95([range(4)]).to(DEVICE)
+    hf95f = CustomHF95([range(5)]).to(DEVICE)
     for sample in tqdm(valid_loader, desc="Validation: "):
     
         X= torch.stack([s["x"] for s in sample], 0)
@@ -124,7 +124,7 @@ def valid(net, valid_loader, e, lossf, DEVICE, Central=False):
         out = out.sigmoid()
         
         Dicenary[f"mDice"] += (1-dicef(out.type(float32).to(DEVICE), Y.type(int64).to(DEVICE))).item()
-        Dicenary[f"mHF95"] += hf95f(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 4).permute(3, 0, 1, 2).type(float32).to(DEVICE))
+        Dicenary[f"mHF95"] += hf95f(out.squeeze().type(float32).to(DEVICE), one_hot(Y.type(int64).squeeze(), 5).permute(3, 0, 1, 2).type(float32).to(DEVICE))
         # Dicenary[f"mIOU"] += mIou(out.squeeze().argmax(dim=0).to(DEVICE), Y.squeeze().type(int64).to(DEVICE)).item()
     # if Central:
     #     logger.info(f"Result epoch {e+1}: loss:{losses/length} mDice: {Dicenary["mDice"]/length: .4f} HF95: {Dicenary["mHF95"]/length: .4f}")
