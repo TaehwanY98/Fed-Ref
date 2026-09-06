@@ -6,7 +6,7 @@ import server.FedOptServer as opt
 import server.FedEveServer as eve
 import server.AdaBestSever as adabest
 import server.AFedPDServer as afedpd
-
+from server.KLD import KLDLoss
 import flwr as fl
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -267,21 +267,23 @@ def client_fn(cid: str):
 if __name__ =="__main__":
     warnings.filterwarnings("ignore")
     fets.make_model_folder(f"./Models/{args.version}")
+
+    server_eval_loss = KLDLoss()
     
     if args.mode =="fedavg":
-        strategy = avg.FedAvg(net, lossf, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = avg.FedAvg(net, server_eval_loss, validLoader, args, inplace=True, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedref":
-        strategy = ref.FedRef(ref_net, aggregated_net, lossf, validLoader, args, args.prime,evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = ref.FedRef(ref_net, aggregated_net, server_eval_loss, validLoader, args, args.prime,evaluate_fn=lambda p, c: c, inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedprox":
-        strategy = prox.FedProx(net, lossf, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = prox.FedProx(net, server_eval_loss, validLoader, args, proximal_mu=0.5, evaluate_fn=lambda p, c: c,inplace=False, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode =="fedopt":
-        strategy = opt.FedOpt(net, lossf, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
+        strategy = opt.FedOpt(net, server_eval_loss, validLoader, args, initial_parameters=[layer.cpu().detach().numpy() for layer in net.parameters()], min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes, evaluate_fn=lambda p, c: c, eta=1e-2, beta_1=0.9, beta_2=0.99, tau=1e-4)
     elif args.mode == "adabest":
-        strategy = adabest.AdaBest(net, lossf, validLoader, args,evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = adabest.AdaBest(net, server_eval_loss, validLoader, args,evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode == "fedeve":
-        strategy = eve.FedEve(net, lossf, validLoader, args, evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = eve.FedEve(net, server_eval_loss, validLoader, args, evaluate_fn=lambda p, c: c, min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     elif args.mode == "afedpd":
-        strategy = afedpd.A_FedPD(net, lossf, validLoader, args, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
+        strategy = afedpd.A_FedPD(net, server_eval_loss, validLoader, args, evaluate_fn=lambda p, c: c,  min_fit_clients=args.numberOfNodes, min_available_clients=args.numberOfNodes, min_evaluate_clients=args.numberOfNodes)
     else:
         raise ValueError(f"Unknown mode: {args.mode}. Please choose from ['fedavg', 'fedref', 'fedprox', 'fedopt', 'adabest', 'fedeve'].")
     

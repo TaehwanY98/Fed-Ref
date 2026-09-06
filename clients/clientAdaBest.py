@@ -44,8 +44,8 @@ class CustomNumpyClient(flwr.client.NumPyClient):
         self.set_parameters(parameters)
         
         # 2. 서버 환경설정(config)에서 하이퍼파라미터 로드
-        alpha = config['alpha']
-        beta = config['beta'] 
+        alpha = config.get('alpha', 0.1)
+        beta = config.get('beta', 0.9) 
         
         # 3. 글로벌 파라미터 백업 (미분 그래프 완전 차단)
         global_params = [

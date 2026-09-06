@@ -144,7 +144,7 @@ class FedRef(flwr.server.strategy.FedAvg):
             # Regularization 항의 그래디언트: 2 * λ^g * (Δθ^g - Δθ^ref)
             reg_gradient = 2 * self.args.lda * (d_g - d_ref)
             # 1 step Gradient Descent 보정
-            corrected_layer = g - self.args.lr * reg_gradient
+            corrected_layer = g - self.args.lr * (delta_F+reg_gradient)
             corrected_ndarrays.append(corrected_layer)
 
         # 7. 차기 라운드를 위한 상태 변수 갱신
@@ -184,8 +184,8 @@ class FedRef(flwr.server.strategy.FedAvg):
         history = validF(self.aggregated_net, self.validLoader, 0, self.lossf.to(self.DEVICE), self.DEVICE, True)
         
         # 파일 저장 경로 처리
-        os.makedirs(os.path.join(self.args.result_path, self.args.mode, f"degrade{self.args.degrade}", self.args.clientMode, str(self.args.seed)), exist_ok=True)
-        csv_path = os.path.join(self.args.result_path, self.args.mode, str(self.args.seed), f"degrade{self.args.degrade}", self.args.clientMode, str(self.args.seed), f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
+        os.makedirs(os.path.join(self.args.result_path, f"degrade{self.args.degrade}", self.args.mode, self.args.clientMode, str(self.args.seed)), exist_ok=True)
+        csv_path = os.path.join(self.args.result_path, f"degrade{self.args.degrade}", self.args.mode, self.args.clientMode, str(self.args.seed), f'{self.args.mode}_{self.args.type}_lda{self.args.lda*10}_p{self.args.prime}.csv')
         
         historyframe = pd.DataFrame({k: [v] for k, v in history.items()})
         if server_round != 0 and os.path.exists(csv_path):
